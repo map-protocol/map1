@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "expected_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "fail_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "failures": {
+      "items": {
+        "properties": {
+          "expected": {
+            "type": "object"
+          },
+          "got": {
+            "type": "object"
+          },
+          "notes_optional": {
+            "type": "string"
+          },
+          "test_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "test_id",
+          "got",
+          "expected"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "implementation_name": {
+      "type": "string"
+    },
+    "implementation_version": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string"
+    },
+    "limits": {
+      "type": "object"
+    },
+    "pass_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "run_timestamp_utc": {
+      "type": "string"
+    },
+    "schema_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "spec_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "total_tests": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "vectors_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "implementation_name",
+    "implementation_version",
+    "language",
+    "platform",
+    "spec_sha256",
+    "vectors_sha256",
+    "expected_sha256",
+    "schema_sha256",
+    "run_timestamp_utc",
+    "limits",
+    "total_tests",
+    "pass_count",
+    "fail_count",
+    "failures"
+  ],
+  "title": "MAP PASS_REPORT schema",
+  "type": "object"
+}

@@ -1,0 +1,57 @@
+name: MAP v1.0 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-conformance:
+    name: Python conformance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.9", "3.12", "3.13"]
+    env:
+      PYTHONUTF8: 1
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run Python conformance
+        run: |
+          python implementations/python/tests/test_conformance.py \
+            --vectors-dir conformance
+        env:
+          MAP1_VECTORS_DIR: conformance
+          PYTHONPATH: implementations/python
+      - name: CLI smoke test
+        run: |
+          echo '{"action":"deploy","target":"prod","version":"2.1.0"}' | \
+            python -m map1 mid --full
+        env:
+          PYTHONPATH: implementations/python
+
+  node-conformance:
+    name: Node conformance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: ["18", "20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Run Node conformance
+        run: |
+          node --test implementations/node/tests/conformance.test.js
+        env:
+          MAP1_VECTORS_DIR: conformance
