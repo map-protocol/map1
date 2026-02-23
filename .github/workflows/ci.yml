@@ -24,16 +24,26 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Run Python conformance
-        run: |
-          python implementations/python/tests/test_conformance.py \
-            --vectors-dir conformance
+        run: python implementations/python/tests/test_conformance.py --vectors-dir conformance
         env:
           MAP1_VECTORS_DIR: conformance
           PYTHONPATH: implementations/python
       - name: CLI smoke test
-        run: |
-          echo '{"action":"deploy","target":"prod","version":"2.1.0"}' | \
-            python -m map1 mid --full
+        run: echo '{"action":"deploy","target":"prod","version":"2.1.0"}' | python -m map1 mid --full
+```
+
+Save the file. Then in PowerShell:
+```
+cd C:\Projects\map1-repo
+```
+```
+git add .github/workflows/ci.yml
+```
+```
+git commit -m "fix: CI single-line commands for Windows PowerShell compatibility"
+```
+```
+git push
         env:
           PYTHONPATH: implementations/python
 
