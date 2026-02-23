@@ -1,5 +1,5 @@
 {
-  "name": "map1",
+  "name": "@map-protocol/map1",
   "version": "1.0.0",
   "description": "MAP v1: deterministic identifiers for structured descriptors",
   "main": "dist/index.js",

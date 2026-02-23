@@ -18,11 +18,11 @@ Contact: agdavidson@gmail.com
 
 Python:
 
-    pip install map1
+    pip install map-protocol
 
 Node:
 
-    npm install map1
+    npm install @map-protocol/map1
 
 ---
 
