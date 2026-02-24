@@ -1,8 +1,31 @@
+[![CI](https://github.com/map-protocol/map1/actions/workflows/ci.yml/badge.svg)](https://github.com/map-protocol/map1/actions)
+[![PyPI](https://img.shields.io/pypi/v/map-protocol)](https://pypi.org/project/map-protocol/)
+[![npm](https://img.shields.io/npm/v/@map-protocol/map1)](https://www.npmjs.com/package/@map-protocol/map1)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Conformance](https://img.shields.io/badge/conformance-53%2F53-brightgreen)](conformance/)
+
 # MAP v1.0 - Deterministic Identity for Structured Data
 
-MAP is a small protocol I built after running into the same problem a bunch of times: structured data crosses a system boundary and you can't reliably prove it's the same thing on the other side.
+MAP is a small protocol I built after running into the same problem too many times: structured data crosses a system boundary and you can't reliably prove it's the same thing on the other side.
 
 Same input, same ID, every time, regardless of what language produced it or how it was serialized along the way.
+
+```
+Input (any language/runtime)
+        │
+        ▼
+   Canonicalize (MCF binary format)
+        │
+        ▼
+     SHA-256
+        │
+        ▼
+   map1:02f660...
+```
+
+---
+
+## Get started
 
 ```
 pip install map-protocol          # Python
@@ -15,6 +38,8 @@ from map1 import mid_full
 mid_full({"action": "deploy", "target": "prod", "version": "2.1.0"})
 # → map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
 ```
+
+Don't trust me - verify it yourself: [browser playground](https://map-protocol.github.io/map1/)
 
 Reorder the keys, re-serialize it, compute it in a different language - same MID:
 
