@@ -131,4 +131,4 @@ The value of MAP depends entirely on those doors staying closed. That's the whol
 
 If you disagree with a decision, I want to hear it. Open an issue. These choices were made carefully but I don't pretend they're the only valid ones. The spec is frozen, but the conversation isn't.
 
-- Aaron
+-AD
