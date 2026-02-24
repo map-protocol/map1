@@ -54,4 +54,4 @@ Be good to each other. Technical disagreement is welcome. Personal attacks aren'
 
 Open an issue. I'd rather answer a question than have someone guess wrong and get frustrated.
 
-- Aaron
+-AD
