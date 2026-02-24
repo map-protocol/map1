@@ -1,147 +1,166 @@
-# map1
+# MAP v1.0 - Deterministic Identity for Structured Data
 
-Deterministic identity for structured data.
+MAP is a small protocol I built after running into the same problem a bunch of times: structured data crosses a system boundary and you can't reliably prove it's the same thing on the other side.
 
-map1 canonicalizes structured input and derives a stable identifier:
+Same input, same ID, every time, regardless of what language produced it or how it was serialized along the way.
 
-    MID = "map1:" + sha256(CANON_BYTES)
+```
+pip install map-protocol          # Python
+npm install @map-protocol/map1    # Node
+```
 
-Identical input → identical MID, across languages and runtimes.
+```python
+from map1 import mid_full
 
-Repo: https://github.com/map-protocol/map1  
-Maintainer: Aaron Gerard Davidson  
-Contact: agdavidson@gmail.com
+mid_full({"action": "deploy", "target": "prod", "version": "2.1.0"})
+# → map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
+```
 
----
+Reorder the keys, re-serialize it, compute it in a different language - same MID:
 
-## Install
+```
+{"version":"2.1.0","action":"deploy","target":"prod"}
+→ map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
+```
 
-Python:
+Change a single value and the MID changes:
 
-    pip install map-protocol
-
-Node:
-
-    npm install @map-protocol/map1
-
----
-
-## Example
-
-Input:
-
-    {"action":"deploy","target":"prod","version":"2.1.0"}
-
-FULL MID:
-
-    map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
-
-Python:
-
-    from map1 import mid_full
-    print(mid_full({"action":"deploy","target":"prod","version":"2.1.0"}))
-    # → map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
-
-Node:
-
-    const { midFull } = require("map1");
-    console.log(midFull({action:"deploy",target:"prod",version:"2.1.0"}));
-    // → map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
-
-Reordered keys produce the same MID:
-
-    {"version":"2.1.0","action":"deploy","target":"prod"}
-    → map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
-
-Changing a value changes the MID:
-
-    {"action":"deploy","target":"staging","version":"2.1.0"}
-    → map1:2c636ba86104e45afcbaacaf8df6e85d8e17cc05e02d114446a9e1081efefd5d
+```
+{"action":"deploy","target":"staging","version":"2.1.0"}
+→ map1:2c636ba86104e45afcbaacaf8df6e85d8e17cc05e02d114446a9e1081efefd5d
+```
 
 ---
 
-## API (v1.0)
+## Why does this exist?
+
+JSON is not canonical. The same data serialized by different systems produces different bytes. Different bytes means different hashes. Different hashes means you can't answer the question "is this the same thing?" across a system boundary.
+
+This matters when structured data passes through middleware, serializers, retry logic, orchestrators, or any pipeline where the payload might get reformatted between point A and point B. If you need to verify that what arrived is what was sent - not just similar, but identical - you need a canonicalization step before you hash.
+
+MAP defines a canonical binary format (MCF) with exactly one valid encoding for any given input. No ambiguity, no implementation-dependent choices. Two conformant implementations will always produce the same bytes for the same logical data. The MID is just the SHA-256 of those bytes with a `map1:` prefix.
+
+I built this after running into the same problem over and over. CI/CD pipelines, API idempotency checks, agent-driven workflows. There wasn't a clean protocol-level answer I could point to and say: use this.
+
+More on the design reasoning: [DESIGN.md](DESIGN.md)
+
+---
+
+## What's in the box
+
+- **Frozen spec** - 483 lines, locked under [governance contract](GOVERNANCE.md). It doesn't change.
+- **Python implementation** - zero dependencies. `pip install map-protocol`
+- **Node implementation** - zero dependencies. `npm install @map-protocol/map1`
+- **53 conformance vectors** - append-only, never removed. Both implementations pass all 53 identically.
+- **CLI tools** for both languages
+- **Browser playground** - try it without installing anything: [map-protocol.github.io/map1/](https://map-protocol.github.io/map1/)
+- **MIT licensed**
+
+---
+
+## Type system
+
+MAP supports four types: **strings**, **bytes**, **lists**, and **maps**.
+
+No numbers. No nulls. No booleans as a distinct type.
+
+These are deliberate choices to ensure cross-language determinism. JavaScript's number handling is different from Python's is different from Go's. Rather than pick a side, MAP rejects them. If you need a number, encode it as a string.
+
+Booleans collapse to their string representation (`true` becomes `"true"`). This means `[true]` and `["true"]` produce the same MID. That's documented as footgun #9 in the spec and explained in [DESIGN.md](DESIGN.md#why-do-booleans-collapse-to-strings).
+
+If you're thinking "those are weird choices" - I understand. Read [DESIGN.md](DESIGN.md) for the full reasoning. The short version: determinism over convenience, every time.
+
+---
+
+## API
 
 Python:
 
-    from map1 import (
-        mid_full,
-        mid_bind,
-        canonical_bytes_full,
-        canonical_bytes_bind,
-        mid_from_canon_bytes,
-    )
+```python
+from map1 import (
+    mid_full,
+    mid_bind,
+    canonical_bytes_full,
+    canonical_bytes_bind,
+    mid_from_canon_bytes,
+)
+```
 
-Node / TS:
+Node / TypeScript:
 
-    import {
-        midFull,
-        midBind,
-        canonicalBytesFull,
-        canonicalBytesBind,
-        midFromCanonBytes,
-    } from "map1"
+```javascript
+import {
+    midFull,
+    midBind,
+    canonicalBytesFull,
+    canonicalBytesBind,
+    midFromCanonBytes,
+} from "map1"
+```
 
-Functions:
-
-    mid_full(descriptor) → "map1:..."
-    mid_bind(descriptor, pointer_set) → "map1:..."
-    mid_full_json(raw_bytes) → "map1:..."
-    mid_bind_json(raw_bytes, pointer_set) → "map1:..."
-    canonical_bytes_full(descriptor) → bytes / Buffer
-    canonical_bytes_bind(descriptor, pointer_set) → bytes / Buffer
-    mid_from_canon_bytes(canon_bytes) → "map1:..."
+| Function | What it does |
+|---|---|
+| `mid_full(descriptor)` | MID of the full descriptor |
+| `mid_bind(descriptor, pointer_set)` | MID of selected fields only (BIND projection) |
+| `canonical_bytes_full(descriptor)` | Raw canonical bytes before hashing |
+| `mid_from_canon_bytes(canon_bytes)` | MID from pre-computed canonical bytes |
 
 ---
 
 ## CLI
 
-    echo '{"action":"deploy"}' | map1 mid --full
-    echo '{"action":"deploy"}' | map1 mid --bind /action
-    map1 mid --full --file mutation.json
-    map1 canon --full --file mutation.json | sha256sum
-    map1 version
+```bash
+echo '{"action":"deploy"}' | map1 mid --full
+echo '{"action":"deploy"}' | map1 mid --bind /action
+map1 mid --full --file mutation.json
+map1 canon --full --file mutation.json | sha256sum
+map1 version
+```
 
 ---
 
-## Not Included
+## What MAP is not
+
+MAP is intentionally narrow. It does one thing and tries to do it predictably. It's meant to be a primitive, not a framework.
 
 - No policy or authorization
 - No signing
 - No storage
 - No schema validation
 
-map1 is identity only.
+It answers one question: **is this the same thing?**
+
+What you build on top of that answer is up to you.
 
 ---
 
-## Why Not Just Hash the JSON?
+## Cross-language guarantee
 
-JSON is not canonical. Key order, whitespace, escape sequences, and number formatting vary across serializers. `sha256('{"a":"1","b":"2"}')` and `sha256('{"b":"2","a":"1"}')` produce different hashes for the same data. map1 solves this.
+Any conformant implementation produces the same MID for the same input. Currently: Python and Node. Planned: Go, Rust.
 
----
-
-## Cross-Language Guarantee
-
-map1 v1.0 guarantees identical MID output for identical input across all conformant implementations.
-
-Current: Python, Node  
-Planned: Go, Rust
+All implementations must pass the full [conformance suite](conformance/) (53 vectors, zero tolerance).
 
 ---
 
-## Conformance
+## Docs
 
-All implementations must pass the official conformance suite (53/53 vectors).
-
-- Spec: /spec/MAP_v1.0.md
-- Quickstart: /docs/quickstart_10min.md
-- Use cases: /docs/use_cases.md
-- Conformance: /conformance/
-- Implementer checklist: /docs/implementer_checklist.md
-- Common footguns: /docs/common_footguns.md
-- Design notes: /docs/design_notes.md
+- [DESIGN.md](DESIGN.md) - Why MAP makes the choices it makes
+- [FAQ.md](FAQ.md) - Common questions and quick answers
+- [Spec](spec/MAP_v1.0.md) - The full 483-line specification
+- [Quickstart](docs/quickstart_10min.md) - Get running in 10 minutes
+- [Use cases](docs/use_cases.md) - Where MAP fits
+- [Common footguns](docs/common_footguns.md) - Things that will trip you up
+- [Implementer checklist](docs/implementer_checklist.md) - Building a new implementation
+- [Contributing](CONTRIBUTING.md) - How to help
 
 ---
 
-License: MIT
+## About
+
+Built by [Aaron Davidson](https://www.linkedin.com/in/aaron-gerard-davidson/). Security architect. Spent my career watching structured data quietly change between systems and finally decided to do something about it.
+
+Questions, feedback, or bugs: [open an issue](https://github.com/map-protocol/map1/issues) or email agdavidson@gmail.com.
+
+---
+
+License: [MIT](LICENSE)
