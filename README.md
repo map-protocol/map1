@@ -16,6 +16,17 @@ Descriptor --> Canonical Bytes (MCF) --> SHA-256 --> MID
                                                     map1:02f660...
 ```
 
+The full picture:
+
+```
+     +--------+       +--------------+       +----------+
+     | Author |------>|   Pipeline   |------>| Consumer |
+     +--------+       +--------------+       +----------+
+      mid_full()       queues, APIs,          mid_full()
+      = "receipt"      agents, LLMs,          = recompute
+                       gateways               compare. done.
+```
+
 ## Don't Panic!
 
 A deployment descriptor is approved:
@@ -46,6 +57,11 @@ MAP produces identifiers you can use as receipts, anchors, and audit evidence. E
 - **Configuration drift.** Store the MID of expected configuration. Periodically recompute from live state. Different MID means something drifted.
 - **Audit trails.** Log the MID of every state transition. Compact, deterministic, independently verifiable across languages.
 - **Idempotency keys.** Use the MID as a natural dedup key -- no synthetic UUIDs.
+- **Delegated actions.** If a payload gets narrowed or rewritten across multiple services, compute a new MID at each hop. Identity makes delegation auditable.
+
+### When NOT to Use MAP
+
+If you control both ends of your pipeline and your serialization is already deterministic, you probably don't need MAP. If you just need a checksum inside one language, use hashlib. If you need semantic equivalence (is this float *close enough* to that float?), MAP is the wrong tool -- it's bitwise-identical or it's different, theres no "close enough." MAP exists for the messy middle: structured data crossing boundaries you dont fully control, where you need to know it survived intact.
 
 ## Install
 
@@ -159,12 +175,17 @@ Four implementations. Every vector must match exactly -- both MID output and err
 make conformance    # runs all languages
 ```
 
+## Performance
+
+Not a bottleneck. Python does ~150k MIDs/sec for typical small descriptors, Node is comparable. O(n log n) for key sorting, linear in payload size, SHA-256 only, no allocations you wouldn't expect. See [benchmarks](docs/BENCHMARKS.md) for real numbers across payload sizes.
+
 ## Resources
 
 - [Specification (v1.1)](spec/MAP_v1.1.md)
 - [10-Minute Quickstart](docs/quickstart_10min.md)
 - [Design Decisions](docs/DESIGN.md)
 - [FAQ](docs/FAQ.md)
+- [Benchmarks](docs/BENCHMARKS.md)
 - [Gotchas](docs/gotchas.md)
 - [Implementer Checklist](docs/implementer_checklist.md)
 - [Playground](https://map-protocol.github.io/map1/playground/)
