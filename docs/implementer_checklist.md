@@ -1,6 +1,6 @@
 # Implementer Checklist
 
-Building a MAP v1.1 implementation? Work through this list. Every item maps to a normative spec requirement.
+Building a MAP v1.1 implementation? Work through this list. Every item maps to a normative spec requirement. If you check all the boxes and pass all 95 vectors, congratulations-- you have a conforming implementation. If you check all the boxes and dont pass all 95 vectors, one of us has a bug. Lets find it.
 
 ## Canonical Header
 
@@ -21,100 +21,98 @@ Building a MAP v1.1 implementation? Work through this list. Every item maps to a
 - [ ] Length prefix is the byte length of the UTF-8 encoding, not the character count
 - [ ] Empty string is valid: tag `0x01` + `0x00000000`
 - [ ] Embedded NUL bytes (`\x00`) in strings are legal and preserved
-- [ ] No Unicode normalization — encode bytes as-is
-- [ ] Lone surrogates (U+D800–U+DFFF) are rejected (`ERR_UTF8`)
+- [ ] No Unicode normalization -- encode bytes as-is
+- [ ] Lone surrogates (U+D800-U+DFFF) are rejected (`ERR_UTF8`)
 
 ## BYTES Encoding
 
 - [ ] Same framing as STRING but with tag `0x02`
-- [ ] No UTF-8 validation on content — arbitrary bytes are allowed
+- [ ] No UTF-8 validation on content -- arbitrary bytes are allowed
 
 ## BOOLEAN Encoding
 
 - [ ] Tag `0x05` + exactly one byte payload
-- [ ] `true` → payload `0x01`
-- [ ] `false` → payload `0x00`
-- [ ] Decoding: any payload value other than `0x00` or `0x01` → `ERR_CANON_MCF`
+- [ ] `true` -> payload `0x01`
+- [ ] `false` -> payload `0x00`
+- [ ] Decoding: any payload value other than `0x00` or `0x01` -> `ERR_CANON_MCF`
 - [ ] Booleans are distinct from strings: `true` ≠ `"true"`, `false` ≠ `"false"`
-- [ ] In Python: check `isinstance(x, bool)` before `isinstance(x, int)` (bool is a subclass of int)
+- [ ] In Python: check `isinstance(x, bool)` before `isinstance(x, int)` (bool is a subclass of int in Python. Yes, really. PEP 285. Look it up.)
 
 ## INTEGER Encoding
 
-- [ ] Tag `0x06` + exactly 8 bytes: signed 64-bit, big-endian (two's complement)
-- [ ] Range: −9,223,372,036,854,775,808 to 9,223,372,036,854,775,807
-- [ ] Values outside int64 range → `ERR_TYPE`
-- [ ] `0` encodes as `0x06` + `0x0000000000000000`
-- [ ] Negative values use standard two's complement: `-1` → `0x06` + `0xFFFFFFFFFFFFFFFF`
-- [ ] Decoding: exactly 8 bytes after tag; fewer → `ERR_CANON_MCF`
+- [ ] Tag `0x06` + exactly 8 bytes: signed big-endian
+- [ ] 0 encodes as `0x06` followed by 8 zero bytes
+- [ ] Range: -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807
+- [ ] Out-of-range values -> `ERR_TYPE`
+- [ ] Python/Ruby: you must explicitly range-check because integers are arbitrary-precision
+- [ ] JavaScript: `JSON.parse` silently loses precision above 2^53. Handle with care. (This one will absolutely bite you if you dont test for it.)
 
-## Float Rejection
+## MAP Key Ordering
 
-- [ ] JSON tokens with `.` (decimal point) → `ERR_TYPE`
-- [ ] JSON tokens with `e` or `E` (exponent) → `ERR_TYPE`
-- [ ] `1.0` is rejected even though mathematically integral — token-level detection
-- [ ] `0.0` is rejected
-- [ ] `1e5` is rejected
-- [ ] This applies to the JSON-STRICT adapter; native API users won't encounter JSON tokens
+This is the single most critical fork surface in the protocol. Get this wrong and everything else is pointless.
 
-## MAP Encoding
+- [ ] Keys sorted by raw UTF-8 bytes, unsigned octet comparison (`memcmp` semantics)
+- [ ] NOT Unicode code-point order
+- [ ] NOT locale collation
+- [ ] NOT UTF-16 code unit order (looking at you, JavaScript)
+- [ ] Prefix rule: shorter key sorts before longer key when one is a prefix of the other
+- [ ] Java: mask bytes with `(b & 0xFF)` in comparators
 
-- [ ] Keys sorted by `memcmp` on UTF-8 bytes (unsigned byte comparison)
-- [ ] Duplicate keys → `ERR_DUP_KEY`
-- [ ] Keys must be strings — no other type allowed as a key
-- [ ] Entry count is 4-byte big-endian; max 65,535 entries
-- [ ] Key ordering: signed byte traps — `0x80` sorts after `0x7F` in unsigned comparison
+## MAP Key Uniqueness
 
-## LIST Encoding
+- [ ] Duplicate keys -> `ERR_DUP_KEY`
+- [ ] Comparison is by raw bytes (after JSON escape resolution if coming from JSON adapter)
 
-- [ ] Elements in order (no sorting)
-- [ ] Element count is 4-byte big-endian; max 65,535 elements
-- [ ] Empty list is valid: tag `0x03` + `0x00000000`
+## Depth and Size Limits
 
-## Null Handling
-
-- [ ] JSON `null` → `ERR_TYPE`
-- [ ] Language-native null/nil/None → `ERR_TYPE`
-
-## JSON-STRICT Adapter
-
-- [ ] BOM rejection: UTF-8 BOM (`0xEF 0xBB 0xBF`) at start of content → `ERR_SCHEMA`
-- [ ] BOM after leading whitespace: also rejected
-- [ ] Lone surrogates in strings → `ERR_UTF8`
-- [ ] Duplicate keys (after escape resolution) → `ERR_DUP_KEY`
-- [ ] Duplicate detection: `{"a":1,"\u0061":2}` has duplicate keys (both decode to `"a"`)
-- [ ] JSON booleans → BOOLEAN type
-- [ ] JSON integer tokens → INTEGER type (range-checked)
-- [ ] JSON float tokens → `ERR_TYPE`
-- [ ] JSON null → `ERR_TYPE`
-- [ ] `Infinity`, `-Infinity`, `NaN` → `ERR_CANON_MCF`
-
-### JavaScript-Specific Warnings
-
-- [ ] `JSON.parse()` converts all numbers to IEEE 754 doubles — integers above 2^53 lose precision silently. Intercept at parse time or use BigInt.
-- [ ] JavaScript's default string sort uses UTF-16 code units, not UTF-8 bytes. Implement UTF-8 byte comparison explicitly for key ordering.
-- [ ] `typeof true === "boolean"` — don't conflate with strings.
-
-## Safety Limits
-
-- [ ] MAX_CANON_BYTES: 1,048,576 (1 MiB) — reject inputs that would exceed this before allocating buffers
-- [ ] MAX_DEPTH: 32 — nested containers (MAPs and LISTs) beyond 32 levels → `ERR_LIMIT_DEPTH`
-- [ ] MAX_MAP_ENTRIES: 65,535
-- [ ] MAX_LIST_ENTRIES: 65,535
+- [ ] MAX_DEPTH = 32 (containers only -- scalars dont count)
+- [ ] MAX_MAP_ENTRIES = 65,535
+- [ ] MAX_LIST_ENTRIES = 65,535
+- [ ] MAX_CANON_BYTES = 1,048,576 (1 MiB)
+- [ ] Enforce MAX_CANON_BYTES before allocating buffers (this is a security requirement, not just a nice-to-have)
 
 ## Error Precedence
 
-- [ ] When multiple errors apply, report the highest-precedence one
-- [ ] Precedence order (highest first): `ERR_CANON_HDR` > `ERR_CANON_MCF` > `ERR_SCHEMA` > `ERR_TYPE` > `ERR_UTF8` > `ERR_DUP_KEY` > `ERR_KEY_ORDER` > `ERR_LIMIT_DEPTH` > `ERR_LIMIT_SIZE`
+- [ ] If multiple violations apply, report the first in this order:
+  1. ERR_CANON_HDR
+  2. ERR_CANON_MCF
+  3. ERR_SCHEMA
+  4. ERR_TYPE
+  5. ERR_UTF8
+  6. ERR_DUP_KEY
+  7. ERR_KEY_ORDER
+  8. ERR_LIMIT_DEPTH
+  9. ERR_LIMIT_SIZE
+- [ ] Error precedence must not vary based on internal parsing strategy (streaming vs tree)
 
-## MID Format
+## JSON-STRICT Adapter
 
-- [ ] Output: `map1:` prefix + lowercase hex SHA-256 of CANON_BYTES
-- [ ] CANON_BYTES = CANON_HDR (5 bytes) + MCF-encoded value
-- [ ] Total MID string length: 71 characters (5 prefix + 64 hex digits)
+- [ ] JSON object -> MAP
+- [ ] JSON array -> LIST
+- [ ] JSON string -> STRING
+- [ ] JSON boolean -> BOOLEAN (not STRING -- this changed in v1.1)
+- [ ] JSON null -> `ERR_TYPE`
+- [ ] JSON integer (no decimal, no exponent, within int64) -> INTEGER
+- [ ] JSON float (decimal point or exponent) -> `ERR_TYPE`
+- [ ] `1.0` -> `ERR_TYPE` (yes, even though its mathematically an integer. Token-level check.)
+- [ ] BOM at start of input -> `ERR_SCHEMA` (even after whitespace)
+- [ ] Duplicate keys after escape resolution -> `ERR_DUP_KEY`
+- [ ] Surrogate code points in strings -> `ERR_UTF8`
 
-## Conformance
+## Fast-Path Validation (mid_from_canon_bytes)
 
-- [ ] Run all 95 test vectors from `conformance_vectors_v11.json`
-- [ ] Compare against `conformance_expected_v11.json`
-- [ ] Zero tolerance — every vector must match exactly
-- [ ] Test both MID output and error codes
+- [ ] Validate CANON_HDR exactly
+- [ ] Parse exactly one root MCF value
+- [ ] Enforce all validations: UTF-8, key uniqueness, key ordering, limits, boolean payload
+- [ ] Reject trailing bytes after root value (`ERR_CANON_MCF`)
+- [ ] Hash the input bytes directly (dont re-encode through the model layer)
+
+## Final Check
+
+- [ ] All 95 conformance vectors pass
+- [ ] Cross-check MIDs against at least one other language implementation
+- [ ] `{"action":"deploy","target":"prod"}` produces `map1:bd70ec1e184b4d5a3c44507584cbaf8a937300df8e13e68f2b22faf67347246f` in your implementation
+
+If that last MID doesnt match, stop. Something is wrong. Don't ship it.
+
+(If it starts with `map1:42`, you have found the Answer. Please open a Discussion.)
