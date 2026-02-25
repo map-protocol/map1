@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAP v1.1 Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep: #0a0e17;
+  --bg-surface: #111827;
+  --bg-elevated: #1a2234;
+  --bg-input: #0d1320;
+  --border: #1e2d44;
+  --border-focus: #38bdf8;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8892a8;
+  --text-muted: #4a5568;
+  --accent: #38bdf8;
+  --accent-dim: #0c4a6e;
+  --accent-glow: rgba(56, 189, 248, 0.15);
+  --green: #34d399;
+  --green-dim: rgba(52, 211, 153, 0.1);
+  --red: #f87171;
+  --red-dim: rgba(248, 113, 113, 0.1);
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+html { font-size: 15px; }
+
+body {
+  font-family: var(--font-display);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.container {
+  position: relative;
+  z-index: 1;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.logo::before, .logo::after {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0.4;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+
+h1 span { color: var(--accent); }
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 1.5rem;
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  padding: 3px;
+  border: 1px solid var(--border);
+}
+
+.tab {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab:hover { color: var(--text-primary); }
+.tab.active {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.input-group { margin-bottom: 1.5rem; }
+
+.input-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.input-label label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.presets { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.preset-btn {
+  padding: 0.2rem 0.6rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.preset-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 1rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+textarea:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+textarea::placeholder { color: var(--text-muted); }
+
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 1.5rem;
+}
+
+.pipeline-step {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 1rem 1.25rem;
+  animation: fadeIn 0.3s ease both;
+}
+
+.pipeline-step:first-child { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.pipeline-step:last-child { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.pipeline-step + .pipeline-step { border-top: none; }
+.pipeline-step:nth-child(1) { animation-delay: 0.05s; }
+.pipeline-step:nth-child(2) { animation-delay: 0.1s; }
+.pipeline-step:nth-child(3) { animation-delay: 0.15s; }
+.pipeline-step:nth-child(4) { animation-delay: 0.2s; }
+
+.pipeline-step-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.step-output {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+  word-break: break-all;
+  white-space: pre-wrap;
+  background: var(--bg-input);
+  padding: 0.6rem 0.8rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.04);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.step-output::-webkit-scrollbar { width: 6px; }
+.step-output::-webkit-scrollbar-track { background: transparent; }
+.step-output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.mid-result {
+  background: var(--bg-surface);
+  border: 1px solid var(--green);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.05);
+}
+
+.mid-result.error {
+  border-color: var(--red);
+  box-shadow: 0 0 20px rgba(248, 113, 113, 0.05);
+}
+
+.mid-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 0.5rem;
+}
+
+.mid-result.error .mid-label { color: var(--red); }
+
+.mid-value {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.mid-result.error .mid-value {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--red);
+}
+
+.copy-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.35rem 0.7rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar button {
+  padding: 0.3rem 0.7rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toolbar button:hover, .toolbar button.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.hex-dump {
+  display: none;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+}
+
+.hex-dump.visible { display: block; }
+.hex-offset { color: var(--text-muted); }
+.hex-byte { color: var(--accent); }
+.hex-ascii { color: var(--green); }
+.hex-hdr { color: var(--red); opacity: 0.8; }
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.compare-col textarea { min-height: 120px; }
+.compare-col .input-label label { font-size: 0.7rem; }
+
+.compare-result {
+  text-align: center;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-mono);
+  margin-bottom: 1rem;
+}
+
+.compare-result.match {
+  background: var(--green-dim);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+
+.compare-result.mismatch {
+  background: var(--red-dim);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
+
+.compare-result.waiting {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.compare-result .verdict { font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem; }
+.compare-result .detail { font-size: 0.75rem; font-weight: 400; opacity: 0.8; }
+
+.compare-mids {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.compare-mid-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+.compare-mid-box .mid-label { font-size: 0.65rem; margin-bottom: 0.3rem; color: var(--accent); }
+.compare-mid-box .mid-value { font-size: 0.7rem; }
+
+.info-bar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 1rem;
+  margin-bottom: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.info-bar .info-item { display: flex; gap: 0.4rem; align-items: center; }
+.info-bar .info-label { color: var(--text-muted); }
+.info-bar .info-val { color: var(--accent); }
+
+footer {
+  text-align: center;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  html { font-size: 14px; }
+  .container { padding: 1.25rem 1rem 3rem; }
+  h1 { font-size: 1.5rem; }
+  .compare-grid, .compare-mids { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="logo">MAP v1.1</div>
+    <h1>Interactive <span>Playground</span></h1>
+    <p class="subtitle">Compute Manifest Anchor Points in real time. Paste JSON, see every step — parse, MCF encode, CANON_BYTES, SHA-256, MID.</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="compute">Compute MID</button>
+    <button class="tab" data-tab="compare">Compare</button>
+  </div>
+
+  <!-- Compute Panel -->
+  <div id="panel-compute" class="panel active">
+    <div class="input-group">
+      <div class="input-label">
+        <label>JSON Input (JSON-STRICT mode)</label>
+        <div class="presets">
+          <button class="preset-btn" data-preset="deploy">deploy</button>
+          <button class="preset-btn" data-preset="nested">nested</button>
+          <button class="preset-btn" data-preset="unicode">unicode</button>
+          <button class="preset-btn" data-preset="integer">integer</button>
+          <button class="preset-btn" data-preset="minimal">minimal</button>
+        </div>
+      </div>
+      <textarea id="json-input" spellcheck="false" placeholder='{"action": "deploy", "target": "prod"}'></textarea>
+    </div>
+
+    <div id="mid-output" class="mid-result" style="display:none">
+      <div class="mid-label" id="mid-label">MID</div>
+      <div class="mid-value" id="mid-value"></div>
+      <button class="copy-btn" id="copy-btn">COPY</button>
+    </div>
+
+    <div id="info-bar" class="info-bar" style="display:none">
+      <div class="info-item"><span class="info-label">CANON_BYTES:</span><span class="info-val" id="info-size"></span></div>
+      <div class="info-item"><span class="info-label">Mode:</span><span class="info-val">json_strict_full</span></div>
+      <div class="info-item"><span class="info-label">Header:</span><span class="info-val">MAP1\0 (5 bytes)</span></div>
+    </div>
+
+    <div class="toolbar">
+      <button id="hex-btn">Hex Dump</button>
+      <button id="pipeline-btn">Pipeline</button>
+    </div>
+
+    <div id="hex-dump" class="hex-dump"></div>
+
+    <div id="pipeline" class="pipeline" style="display:none">
+      <div class="pipeline-step">
+        <div class="pipeline-step-header">
+          <div class="step-num">1</div>
+          <div class="step-title">JSON-STRICT Parse &amp; Validate</div>
+        </div>
+        <div class="step-output" id="step-parse">—</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipeline-step-header">
+          <div class="step-num">2</div>
+          <div class="step-title">MCF Binary Encode</div>
+        </div>
+        <div class="step-output" id="step-mcf">—</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipeline-step-header">
+          <div class="step-num">3</div>
+          <div class="step-title">CANON_BYTES = Header ‖ MCF</div>
+        </div>
+        <div class="step-output" id="step-canon">—</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipeline-step-header">
+          <div class="step-num">4</div>
+          <div class="step-title">SHA-256 → MID</div>
+        </div>
+        <div class="step-output" id="step-mid">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compare Panel -->
+  <div id="panel-compare" class="panel">
+    <div class="compare-grid">
+      <div class="compare-col">
+        <div class="input-label"><label>Input A</label></div>
+        <textarea id="compare-a" spellcheck="false" placeholder='{"action":"deploy","target":"prod"}'></textarea>
+      </div>
+      <div class="compare-col">
+        <div class="input-label"><label>Input B</label></div>
+        <textarea id="compare-b" spellcheck="false" placeholder='{ "target": "prod", "action": "deploy" }'></textarea>
+      </div>
+    </div>
+
+    <div id="compare-result" class="compare-result waiting">
+      <div class="verdict">Enter JSON in both fields</div>
+      <div class="detail">MIDs will be compared automatically</div>
+    </div>
+
+    <div class="compare-mids">
+      <div class="compare-mid-box">
+        <div class="mid-label">MID A</div>
+        <div class="mid-value" id="compare-mid-a" style="color: var(--text-muted)">—</div>
+      </div>
+      <div class="compare-mid-box">
+        <div class="mid-label">MID B</div>
+        <div class="mid-value" id="compare-mid-b" style="color: var(--text-muted)">—</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://github.com/map-protocol/map1">MAP v1.1</a> · Manifest Anchor Protocol
+    · <a href="https://github.com/map-protocol/map1/blob/main/spec/MAP_v1.1.md">Spec</a>
+    · <a href="https://github.com/map-protocol/map1/blob/main/docs/quickstart.md">Quickstart</a>
+  </footer>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// MAP v1.1 — JavaScript Reference Implementation (Playground)
+// Implements: JSON-STRICT adapter, MCF encoder, CANON_BYTES, MID
+// ═══════════════════════════════════════════════════════════════
+
+const TAG_STRING  = 0x01;
+const TAG_BYTES   = 0x02;
+const TAG_LIST    = 0x03;
+const TAG_MAP     = 0x04;
+const TAG_BOOLEAN = 0x05;
+const TAG_INTEGER = 0x06;
+
+const CANON_HDR = new Uint8Array([0x4D, 0x41, 0x50, 0x31, 0x00]); // "MAP1\0"
+const MAX_DEPTH = 32;
+const INT64_MAX = BigInt("9223372036854775807");
+const INT64_MIN = BigInt("-9223372036854775808");
+
+const encoder = new TextEncoder();
+
+class MapError extends Error {
+  constructor(code, msg) {
+    super(`${code}: ${msg}`);
+    this.code = code;
+  }
+}
+
+// ── UTF-8 scalar validation ─────────────────────────────────
+function validateUtf8Scalar(str) {
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code >= 0xD800 && code <= 0xDFFF) {
+      // Check for valid surrogate pair (JS uses UTF-16)
+      if (code >= 0xD800 && code <= 0xDBFF && i + 1 < str.length) {
+        const next = str.charCodeAt(i + 1);
+        if (next >= 0xDC00 && next <= 0xDFFF) {
+          i++; // valid pair, skip low surrogate
+          continue;
+        }
+      }
+      throw new MapError('ERR_UTF8', `surrogate code point U+${code.toString(16).toUpperCase()}`);
+    }
+  }
+}
+
+// ── Key comparison (unsigned byte memcmp) ───────────────────
+function keyCompare(a, b) {
+  // a, b are Uint8Array
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+  }
+  if (a.length === b.length) return 0;
+  return a.length < b.length ? -1 : 1;
+}
+
+// ── uint32 big-endian ───────────────────────────────────────
+function uint32be(n) {
+  const buf = new Uint8Array(4);
+  buf[0] = (n >>> 24) & 0xFF;
+  buf[1] = (n >>> 16) & 0xFF;
+  buf[2] = (n >>> 8) & 0xFF;
+  buf[3] = n & 0xFF;
+  return buf;
+}
+
+// ── int64 big-endian ────────────────────────────────────────
+function int64be(val) {
+  // val is BigInt
+  const buf = new Uint8Array(8);
+  let v = val;
+  if (v < 0n) v = v + (1n << 64n); // two's complement
+  for (let i = 7; i >= 0; i--) {
+    buf[i] = Number(v & 0xFFn);
+    v >>= 8n;
+  }
+  return buf;
+}
+
+// ── JSON-STRICT Number Validation ───────────────────────────
+// We need to detect float tokens vs integer tokens in the raw JSON.
+// Strategy: scan the raw JSON for number tokens and classify them.
+function validateJsonNumbers(raw) {
+  // Match JSON number tokens (simplified but covers the spec cases)
+  // We walk through the string checking for numbers outside of strings
+  let inString = false;
+  let escape = false;
+  let i = 0;
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (inString) {
+      if (escape) { escape = false; i++; continue; }
+      if (ch === '\\') { escape = true; i++; continue; }
+      if (ch === '"') { inString = false; }
+      i++;
+      continue;
+    }
+    if (ch === '"') { inString = true; i++; continue; }
+    // Check for number start (digit or minus followed by digit)
+    if (ch === '-' || (ch >= '0' && ch <= '9')) {
+      let start = i;
+      if (ch === '-') i++;
+      // Consume digits
+      while (i < raw.length && raw[i] >= '0' && raw[i] <= '9') i++;
+      // Check for decimal point
+      if (i < raw.length && raw[i] === '.') {
+        const token = raw.substring(start, i + 1);
+        throw new MapError('ERR_TYPE', `JSON float not allowed (decimal point): ${raw.substring(start, Math.min(i + 10, raw.length))}`);
+      }
+      // Check for exponent
+      if (i < raw.length && (raw[i] === 'e' || raw[i] === 'E')) {
+        throw new MapError('ERR_TYPE', `JSON float not allowed (exponent): ${raw.substring(start, Math.min(i + 10, raw.length))}`);
+      }
+      // It's an integer token — check range
+      const token = raw.substring(start, i);
+      try {
+        const val = BigInt(token);
+        if (val < INT64_MIN || val > INT64_MAX) {
+          throw new MapError('ERR_TYPE', `integer overflow: ${token}`);
+        }
+      } catch (e) {
+        if (e instanceof MapError) throw e;
+        throw new MapError('ERR_TYPE', `invalid number: ${token}`);
+      }
+      continue;
+    }
+    i++;
+  }
+}
+
+// ── JSON-STRICT Parse ───────────────────────────────────────
+function jsonStrictParse(raw) {
+  // BOM rejection
+  if (raw.charCodeAt(0) === 0xFEFF || raw.startsWith('\uFEFF')) {
+    throw new MapError('ERR_SCHEMA', 'UTF-8 BOM rejected');
+  }
+  // Check for BOM after whitespace
+  const stripped = raw.replace(/^[\x20\x09\x0A\x0D]*/, '');
+  if (stripped.charCodeAt(0) === 0xFEFF || stripped.startsWith('\uFEFF')) {
+    throw new MapError('ERR_SCHEMA', 'UTF-8 BOM rejected (after whitespace)');
+  }
+
+  // Validate number tokens before parsing
+  validateJsonNumbers(raw);
+
+  // Parse with duplicate key detection
+  let dupFound = false;
+  let parsed;
+  try {
+    // We need to detect duplicates. Use a custom approach:
+    // Parse, then re-parse checking for dups
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new MapError('ERR_CANON_MCF', 'JSON parse error: ' + e.message);
+  }
+
+  // Check for null values in the parsed result
+  checkForNull(parsed);
+
+  // Duplicate key detection: re-scan the raw JSON
+  detectDuplicateKeys(raw);
+
+  return parsed;
+}
+
+// ── Null detection (post-parse walk) ────────────────────────
+function checkForNull(val) {
+  if (val === null) {
+    throw new MapError('ERR_TYPE', 'JSON null not allowed');
+  }
+  if (Array.isArray(val)) {
+    for (const item of val) checkForNull(item);
+  } else if (typeof val === 'object' && val !== null) {
+    for (const v of Object.values(val)) checkForNull(v);
+  }
+}
+
+// ── Duplicate key detection ─────────────────────────────────
+// Walk through JSON text tracking object keys at each nesting level
+function detectDuplicateKeys(raw) {
+  let pos = 0;
+  function skipWhitespace() {
+    while (pos < raw.length && ' \t\n\r'.includes(raw[pos])) pos++;
+  }
+  function readString() {
+    if (raw[pos] !== '"') throw new Error('expected "');
+    pos++; // skip opening "
+    let str = '';
+    while (pos < raw.length) {
+      const ch = raw[pos];
+      if (ch === '\\') {
+        pos++;
+        const esc = raw[pos];
+        if (esc === 'u') {
+          const hex = raw.substring(pos + 1, pos + 5);
+          str += String.fromCharCode(parseInt(hex, 16));
+          pos += 5;
+        } else {
+          const escMap = {'"': '"', '\\': '\\', '/': '/', 'b': '\b', 'f': '\f', 'n': '\n', 'r': '\r', 't': '\t'};
+          str += escMap[esc] || esc;
+          pos++;
+        }
+      } else if (ch === '"') {
+        pos++; // skip closing "
+        return str;
+      } else {
+        str += ch;
+        pos++;
+      }
+    }
+    throw new Error('unterminated string');
+  }
+  function skipValue() {
+    skipWhitespace();
+    const ch = raw[pos];
+    if (ch === '"') { readString(); return; }
+    if (ch === '{') { readObject(); return; }
+    if (ch === '[') { readArray(); return; }
+    // number, true, false, null — skip tokens
+    while (pos < raw.length && !',]}'.includes(raw[pos]) && !' \t\n\r'.includes(raw[pos])) pos++;
+  }
+  function readArray() {
+    pos++; // skip [
+    skipWhitespace();
+    if (raw[pos] === ']') { pos++; return; }
+    while (true) {
+      skipValue();
+      skipWhitespace();
+      if (raw[pos] === ']') { pos++; return; }
+      if (raw[pos] === ',') { pos++; continue; }
+      throw new Error('expected , or ]');
+    }
+  }
+  function readObject() {
+    pos++; // skip {
+    skipWhitespace();
+    if (raw[pos] === '}') { pos++; return; }
+    const seen = new Set();
+    while (true) {
+      skipWhitespace();
+      const key = readString();
+      if (seen.has(key)) {
+        throw new MapError('ERR_DUP_KEY', `duplicate key: "${key}"`);
+      }
+      seen.add(key);
+      skipWhitespace();
+      pos++; // skip :
+      skipValue();
+      skipWhitespace();
+      if (raw[pos] === '}') { pos++; return; }
+      if (raw[pos] === ',') { pos++; continue; }
+      throw new Error('expected , or }');
+    }
+  }
+
+  pos = 0;
+  try { skipValue(); } catch (e) {
+    if (e instanceof MapError) throw e;
+    // ignore other parse errors — JSON.parse already validated
+  }
+}
+
+// ── MCF Encode ──────────────────────────────────────────────
+function mcfEncode(val, depth) {
+  if (depth === undefined) depth = 0;
+
+  // BOOLEAN (must check before number since JS doesn't conflate them,
+  // but be defensive)
+  if (typeof val === 'boolean') {
+    return new Uint8Array([TAG_BOOLEAN, val ? 0x01 : 0x00]);
+  }
+
+  // INTEGER
+  if (typeof val === 'number') {
+    if (!Number.isInteger(val)) {
+      throw new MapError('ERR_TYPE', 'JSON float not allowed');
+    }
+    // For safe integers, encode directly
+    const big = BigInt(val);
+    if (big < INT64_MIN || big > INT64_MAX) {
+      throw new MapError('ERR_TYPE', 'integer out of int64 range');
+    }
+    const buf = new Uint8Array(9);
+    buf[0] = TAG_INTEGER;
+    buf.set(int64be(big), 1);
+    return buf;
+  }
+
+  // STRING
+  if (typeof val === 'string') {
+    validateUtf8Scalar(val);
+    const utf8 = encoder.encode(val);
+    const buf = new Uint8Array(1 + 4 + utf8.length);
+    buf[0] = TAG_STRING;
+    buf.set(uint32be(utf8.length), 1);
+    buf.set(utf8, 5);
+    return buf;
+  }
+
+  // LIST
+  if (Array.isArray(val)) {
+    if (depth + 1 > MAX_DEPTH) throw new MapError('ERR_LIMIT_DEPTH', 'exceeds MAX_DEPTH');
+    const parts = [new Uint8Array([TAG_LIST]), uint32be(val.length)];
+    for (const item of val) {
+      parts.push(mcfEncode(item, depth + 1));
+    }
+    return concatBytes(parts);
+  }
+
+  // MAP
+  if (typeof val === 'object' && val !== null) {
+    if (depth + 1 > MAX_DEPTH) throw new MapError('ERR_LIMIT_DEPTH', 'exceeds MAX_DEPTH');
+    // Collect keys as UTF-8 bytes, sort by memcmp
+    const entries = [];
+    for (const [k, v] of Object.entries(val)) {
+      validateUtf8Scalar(k);
+      const keyBytes = encoder.encode(k);
+      entries.push({ keyStr: k, keyBytes, val: v });
+    }
+    entries.sort((a, b) => keyCompare(a.keyBytes, b.keyBytes));
+
+    // Check for duplicates (shouldn't happen from JSON.parse, but be safe)
+    for (let i = 1; i < entries.length; i++) {
+      if (keyCompare(entries[i-1].keyBytes, entries[i].keyBytes) === 0) {
+        throw new MapError('ERR_DUP_KEY', 'duplicate key');
+      }
+    }
+
+    const parts = [new Uint8Array([TAG_MAP]), uint32be(entries.length)];
+    for (const entry of entries) {
+      // Key is always STRING-tagged
+      const keyBuf = new Uint8Array(1 + 4 + entry.keyBytes.length);
+      keyBuf[0] = TAG_STRING;
+      keyBuf.set(uint32be(entry.keyBytes.length), 1);
+      keyBuf.set(entry.keyBytes, 5);
+      parts.push(keyBuf);
+      parts.push(mcfEncode(entry.val, depth + 1));
+    }
+    return concatBytes(parts);
+  }
+
+  throw new MapError('ERR_TYPE', 'unsupported type: ' + typeof val);
+}
+
+function concatBytes(arrays) {
+  let total = 0;
+  for (const a of arrays) total += a.length;
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const a of arrays) {
+    result.set(a, offset);
+    offset += a.length;
+  }
+  return result;
+}
+
+// ── CANON_BYTES ─────────────────────────────────────────────
+function canonBytes(val) {
+  const mcf = mcfEncode(val);
+  return concatBytes([CANON_HDR, mcf]);
+}
+
+// ── SHA-256 ─────────────────────────────────────────────────
+async function sha256hex(data) {
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ── Full pipeline ───────────────────────────────────────────
+async function computeMID(jsonStr) {
+  const parsed = jsonStrictParse(jsonStr);
+
+  // Root must be an object (MAP)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new MapError('ERR_SCHEMA', 'root must be a JSON object (MAP)');
+  }
+
+  const mcf = mcfEncode(parsed);
+  const canon = concatBytes([CANON_HDR, mcf]);
+  const hash = await sha256hex(canon);
+  const mid = 'map1:' + hash;
+  return { parsed, mcf, canon, hash, mid };
+}
+
+// ── Hex Dump ────────────────────────────────────────────────
+function makeHexDump(bytes) {
+  const lines = [];
+  for (let i = 0; i < bytes.length; i += 16) {
+    const off = i.toString(16).padStart(8, '0');
+    const chunk = bytes.slice(i, i + 16);
+    const hex = [];
+    for (let j = 0; j < 16; j++) {
+      if (j < chunk.length) {
+        // Color header bytes differently
+        const isHdr = (i + j) < 5;
+        const cls = isHdr ? 'hex-hdr' : 'hex-byte';
+        hex.push(`<span class="${cls}">${chunk[j].toString(16).padStart(2, '0')}</span>`);
+      } else {
+        hex.push('  ');
+      }
+      if (j === 7) hex.push('');
+    }
+    let ascii = '';
+    for (let j = 0; j < chunk.length; j++) {
+      const b = chunk[j];
+      ascii += (b >= 0x20 && b <= 0x7e) ? String.fromCharCode(b) : '.';
+    }
+    lines.push(
+      `<span class="hex-offset">${off}</span>  ${hex.join(' ')}  <span class="hex-ascii">|${ascii}|</span>`
+    );
+  }
+  lines.push(`<span class="hex-offset">${bytes.length.toString(16).padStart(8, '0')}</span>  <span class="hex-ascii">(${bytes.length} bytes — 5 header + ${bytes.length - 5} MCF)</span>`);
+  return lines.join('\n');
+}
+
+// ── MCF annotation (human-readable) ─────────────────────────
+function annotateMCF(mcf) {
+  let pos = 0;
+  const lines = [];
+  function indent(d) { return '  '.repeat(d); }
+  function readOne(depth) {
+    if (pos >= mcf.length) return;
+    const tag = mcf[pos++];
+    switch (tag) {
+      case TAG_STRING: {
+        const len = (mcf[pos]<<24 | mcf[pos+1]<<16 | mcf[pos+2]<<8 | mcf[pos+3]) >>> 0;
+        pos += 4;
+        const bytes = mcf.slice(pos, pos + len);
+        pos += len;
+        let str;
+        try { str = new TextDecoder().decode(bytes); } catch { str = `<${len} bytes>`; }
+        lines.push(`${indent(depth)}STRING(${len}) "${str}"`);
+        break;
+      }
+      case TAG_BOOLEAN: {
+        const val = mcf[pos++];
+        lines.push(`${indent(depth)}BOOLEAN ${val ? 'true' : 'false'}`);
+        break;
+      }
+      case TAG_INTEGER: {
+        const view = new DataView(mcf.buffer, mcf.byteOffset + pos, 8);
+        const val = view.getBigInt64(0);
+        pos += 8;
+        lines.push(`${indent(depth)}INTEGER ${val}`);
+        break;
+      }
+      case TAG_LIST: {
+        const count = (mcf[pos]<<24 | mcf[pos+1]<<16 | mcf[pos+2]<<8 | mcf[pos+3]) >>> 0;
+        pos += 4;
+        lines.push(`${indent(depth)}LIST(${count}) [`);
+        for (let i = 0; i < count; i++) readOne(depth + 1);
+        lines.push(`${indent(depth)}]`);
+        break;
+      }
+      case TAG_MAP: {
+        const count = (mcf[pos]<<24 | mcf[pos+1]<<16 | mcf[pos+2]<<8 | mcf[pos+3]) >>> 0;
+        pos += 4;
+        lines.push(`${indent(depth)}MAP(${count}) {`);
+        for (let i = 0; i < count; i++) {
+          // key
+          const kTag = mcf[pos++];
+          const kLen = (mcf[pos]<<24 | mcf[pos+1]<<16 | mcf[pos+2]<<8 | mcf[pos+3]) >>> 0;
+          pos += 4;
+          const kBytes = mcf.slice(pos, pos + kLen);
+          pos += kLen;
+          let key;
+          try { key = new TextDecoder().decode(kBytes); } catch { key = `<${kLen} bytes>`; }
+          lines.push(`${indent(depth + 1)}KEY "${key}" =>`);
+          readOne(depth + 1);
+        }
+        lines.push(`${indent(depth)}}`);
+        break;
+      }
+      default:
+        lines.push(`${indent(depth)}UNKNOWN(0x${tag.toString(16)})`);
+    }
+  }
+  readOne(0);
+  return lines.join('\n');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════════════════
+
+const PRESETS = {
+  deploy: '{\n  "action": "deploy",\n  "target": "prod"\n}',
+  nested: '{\n  "config": {\n    "replicas": 3,\n    "region": "us-east-1"\n  },\n  "action": "scale",\n  "service": "api-gateway"\n}',
+  unicode: '{\n  "greeting": "こんにちは世界",\n  "name": "José García"\n}',
+  integer: '{\n  "count": 42,\n  "offset": -1,\n  "enabled": true\n}',
+  minimal: '{\n  "v": true\n}'
+};
+
+// DOM refs
+const jsonInput     = document.getElementById('json-input');
+const midOutput     = document.getElementById('mid-output');
+const midLabel      = document.getElementById('mid-label');
+const midValue      = document.getElementById('mid-value');
+const copyBtn       = document.getElementById('copy-btn');
+const infoBar       = document.getElementById('info-bar');
+const infoSize      = document.getElementById('info-size');
+const hexDumpEl     = document.getElementById('hex-dump');
+const hexBtn        = document.getElementById('hex-btn');
+const pipelineEl    = document.getElementById('pipeline');
+const pipelineBtn   = document.getElementById('pipeline-btn');
+const stepParse     = document.getElementById('step-parse');
+const stepMcf       = document.getElementById('step-mcf');
+const stepCanon     = document.getElementById('step-canon');
+const stepMid       = document.getElementById('step-mid');
+const compareA      = document.getElementById('compare-a');
+const compareB      = document.getElementById('compare-b');
+const compareResult = document.getElementById('compare-result');
+const compareMidA   = document.getElementById('compare-mid-a');
+const compareMidB   = document.getElementById('compare-mid-b');
+
+let debounce;
+function onInput() {
+  clearTimeout(debounce);
+  debounce = setTimeout(processInput, 80);
+}
+
+async function processInput() {
+  const raw = jsonInput.value.trim();
+  if (!raw) {
+    midOutput.style.display = 'none';
+    infoBar.style.display = 'none';
+    hexDumpEl.innerHTML = '';
+    stepParse.textContent = stepMcf.textContent = stepCanon.textContent = stepMid.textContent = '—';
+    return;
+  }
+  try {
+    const { parsed, mcf, canon, hash, mid } = await computeMID(raw);
+
+    midOutput.style.display = 'block';
+    midOutput.classList.remove('error');
+    midLabel.textContent = 'MID';
+    midValue.textContent = mid;
+    copyBtn.style.display = '';
+
+    infoBar.style.display = 'flex';
+    infoSize.textContent = canon.length + ' bytes';
+
+    hexDumpEl.innerHTML = makeHexDump(canon);
+
+    // Pipeline
+    stepParse.textContent = JSON.stringify(parsed, null, 2);
+    stepMcf.textContent = annotateMCF(mcf);
+    stepCanon.textContent = `CANON_HDR: 4d 41 50 31 00 ("MAP1\\0")\nMCF body:  ${mcf.length} bytes\nTotal:     ${canon.length} bytes\n\nFirst 64 hex bytes:\n${Array.from(canon.slice(0, 64)).map(b => b.toString(16).padStart(2, '0')).join(' ')}${canon.length > 64 ? ' ...' : ''}`;
+    stepMid.textContent = `sha256(CANON_BYTES) = ${hash}\nMID = "map1:" + hash\n    = ${mid}`;
+
+  } catch (e) {
+    midOutput.style.display = 'block';
+    midOutput.classList.add('error');
+    midLabel.textContent = e.code || 'ERROR';
+    midValue.textContent = e.message;
+    copyBtn.style.display = 'none';
+    infoBar.style.display = 'none';
+    hexDumpEl.innerHTML = '';
+    stepParse.textContent = stepMcf.textContent = stepCanon.textContent = stepMid.textContent = '—';
+  }
+}
+
+jsonInput.addEventListener('input', onInput);
+
+copyBtn.addEventListener('click', () => {
+  navigator.clipboard.writeText(midValue.textContent);
+  copyBtn.textContent = 'COPIED';
+  copyBtn.classList.add('copied');
+  setTimeout(() => { copyBtn.textContent = 'COPY'; copyBtn.classList.remove('copied'); }, 1500);
+});
+
+hexBtn.addEventListener('click', () => {
+  hexDumpEl.classList.toggle('visible');
+  hexBtn.classList.toggle('active');
+});
+
+pipelineBtn.addEventListener('click', () => {
+  const vis = pipelineEl.style.display !== 'flex';
+  pipelineEl.style.display = vis ? 'flex' : 'none';
+  pipelineBtn.classList.toggle('active', vis);
+});
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    jsonInput.value = PRESETS[btn.dataset.preset];
+    onInput();
+  });
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Compare ─────────────────────────────────────────────────
+async function onCompare() {
+  const a = compareA.value.trim();
+  const b = compareB.value.trim();
+
+  let midAStr = null, midBStr = null, errA = null, errB = null;
+
+  if (a) {
+    try { midAStr = (await computeMID(a)).mid; compareMidA.textContent = midAStr; compareMidA.style.color = ''; }
+    catch (e) { errA = e.message; compareMidA.textContent = e.code || 'Error'; compareMidA.style.color = 'var(--red)'; }
+  } else { compareMidA.textContent = '—'; compareMidA.style.color = 'var(--text-muted)'; }
+
+  if (b) {
+    try { midBStr = (await computeMID(b)).mid; compareMidB.textContent = midBStr; compareMidB.style.color = ''; }
+    catch (e) { errB = e.message; compareMidB.textContent = e.code || 'Error'; compareMidB.style.color = 'var(--red)'; }
+  } else { compareMidB.textContent = '—'; compareMidB.style.color = 'var(--text-muted)'; }
+
+  if (!a || !b) {
+    compareResult.className = 'compare-result waiting';
+    compareResult.innerHTML = '<div class="verdict">Enter JSON in both fields</div><div class="detail">MIDs will be compared automatically</div>';
+  } else if (errA || errB) {
+    compareResult.className = 'compare-result mismatch';
+    const msg = errA ? 'Input A: ' + errA : 'Input B: ' + errB;
+    compareResult.innerHTML = '<div class="verdict">Parse Error</div><div class="detail">' + msg + '</div>';
+  } else if (midAStr === midBStr) {
+    compareResult.className = 'compare-result match';
+    compareResult.innerHTML = '<div class="verdict">✓ MATCH</div><div class="detail">Both inputs produce the same MID — semantically identical manifests</div>';
+  } else {
+    compareResult.className = 'compare-result mismatch';
+    compareResult.innerHTML = '<div class="verdict">✗ DIFFERENT</div><div class="detail">Inputs produce different MIDs — distinct manifests</div>';
+  }
+}
+
+compareA.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(onCompare, 80); });
+compareB.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(onCompare, 80); });
+
+// ── Init ────────────────────────────────────────────────────
+jsonInput.value = PRESETS.deploy;
+onInput();
+</script>
+
+</body>
+</html>
