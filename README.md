@@ -162,7 +162,7 @@ make conformance    # runs all languages
 - [Gotchas](docs/gotchas.md)
 - [Implementer Checklist](docs/implementer_checklist.md)
 - [Changelog](CHANGELOG.md)
-- [Playground](https://map-protocol.github.io/map1/)
+- [Playground](https://map-protocol.github.io/map1/playground/)
 
 ## License
 
