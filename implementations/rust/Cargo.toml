@@ -1,0 +1,19 @@
+[package]
+name = "map1"
+version = "1.1.0"
+edition = "2021"
+description = "MAP v1.1 — deterministic identity for structured descriptors"
+license = "Apache-2.0"
+repository = "https://github.com/map-protocol/map1"
+keywords = ["identity", "canonical", "deterministic", "hash", "governance"]
+categories = ["cryptography", "encoding"]
+
+[dependencies]
+sha2 = "0.10"
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+base64 = "0.22"
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+serde = { version = "1", features = ["derive"] }

@@ -1,34 +1,34 @@
 {
   "name": "@map-protocol/map1",
-  "version": "1.0.0",
-  "description": "MAP v1: deterministic identifiers for structured descriptors",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist/**/*.js",
-    "dist/**/*.d.ts",
-    "LICENSE"
-  ],
+  "version": "1.1.0",
+  "description": "MAP v1.1 — deterministic identity for structured descriptors",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "bin": {
+    "map1": "src/cli.js"
+  },
   "scripts": {
-    "build": "tsc",
-    "test": "node --test tests/*.test.js",
-    "test:conformance": "node --test tests/conformance.test.js",
-    "test:api": "node --test tests/api.test.js"
+    "test": "node tests/test-conformance.js",
+    "test:unit": "node tests/test-api.js"
   },
   "keywords": [
-    "map1",
+    "map",
     "canonical",
+    "identity",
     "deterministic",
     "hash",
-    "identity",
-    "mcf",
-    "conformance"
+    "sha256"
   ],
+  "author": "Aaron Gerard Davidson",
   "license": "MIT",
-  "homepage": "https://github.com/map-protocol/map1",
-  "engines": {
-    "node": ">=18"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/map-protocol/map1"
   },
-  "devDependencies": {},
-  "dependencies": {}
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "src/"
+  ]
 }

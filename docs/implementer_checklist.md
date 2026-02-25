@@ -1,82 +1,120 @@
 # Implementer Checklist
 
-This checklist is for implementers writing new MAP implementations (Go, Rust, etc.).
+Building a MAP v1.1 implementation? Work through this list. Every item maps to a normative spec requirement.
 
-## Checklist
+## Canonical Header
 
-1. Read the spec: `spec/MAP_v1.0.md`.
+- [ ] CANON_HDR is exactly 5 bytes: `MAP1\x00` (ASCII "MAP1" + NUL terminator)
+- [ ] Decoding: reject any input that doesn't start with these 5 bytes (`ERR_CANON_HDR`)
 
-2. Implement MCF encoding for all four types:
-   - STRING: tag `0x01` + `uint32be(len)` + UTF-8 bytes
-   - BYTES:  tag `0x02` + `uint32be(len)` + raw bytes
-   - LIST:   tag `0x03` + `uint32be(count)` + encoded items
-   - MAP:    tag `0x04` + `uint32be(count)` + sorted (key, value) pairs
+## Type Tags
 
-3. Key ordering: sort MAP keys by unsigned-octet `memcmp` over raw UTF-8 bytes.
-   NOT Unicode codepoint order. NOT UTF-16 code unit order. NOT locale collation.
+- [ ] STRING: tag `0x01`, followed by 4-byte big-endian length, then UTF-8 bytes
+- [ ] BYTES: tag `0x02`, followed by 4-byte big-endian length, then raw bytes
+- [ ] LIST: tag `0x03`, followed by 4-byte big-endian count, then `count` encoded values
+- [ ] MAP: tag `0x04`, followed by 4-byte big-endian count, then `count` key-value pairs (key is always STRING-encoded, value is any type)
+- [ ] BOOLEAN: tag `0x05`, followed by a single byte: `0x01` for true, `0x00` for false
+- [ ] INTEGER: tag `0x06`, followed by 8 bytes: signed 64-bit big-endian
 
-4. Duplicate key detection:
-   - MAP keys must be strictly ascending after sorting.
-   - Equal keys → `ERR_DUP_KEY`.
-   - Out-of-order keys → `ERR_KEY_ORDER`.
+## STRING Encoding
 
-5. UTF-8 scalar validation:
-   - All STRING values and MAP keys must be valid UTF-8.
-   - Reject surrogate code points `U+D800`–`U+DFFF` explicitly.
+- [ ] Length prefix is the byte length of the UTF-8 encoding, not the character count
+- [ ] Empty string is valid: tag `0x01` + `0x00000000`
+- [ ] Embedded NUL bytes (`\x00`) in strings are legal and preserved
+- [ ] No Unicode normalization — encode bytes as-is
+- [ ] Lone surrogates (U+D800–U+DFFF) are rejected (`ERR_UTF8`)
 
-6. Depth tracking:
-   - Containers increment depth. Scalars do not.
-   - Root container is depth 1.
-   - Check fires before recursing into a child container:
-     `if current_depth + 1 > MAX_DEPTH → ERR_LIMIT_DEPTH`.
+## BYTES Encoding
 
-7. Canonical bytes:
-   - `CANON_BYTES = CANON_HDR + MCF(root_value)`
-   - `CANON_HDR` is exactly `b"MAP1\x00"` (5 bytes). Never changes.
+- [ ] Same framing as STRING but with tag `0x02`
+- [ ] No UTF-8 validation on content — arbitrary bytes are allowed
 
-8. MID derivation:
-   - `MID = "map1:" + lowercase_hex(sha256(CANON_BYTES))`
-   - Prefix is always lowercase and always present.
+## BOOLEAN Encoding
 
-9. Implement `mid_from_canon_bytes` (fast-path validation):
-   - Check CANON_HDR
-   - Parse and fully validate the MCF body
-   - Hash the input bytes directly (no re-encoding)
-   - Reject trailing bytes after the root value
+- [ ] Tag `0x05` + exactly one byte payload
+- [ ] `true` → payload `0x01`
+- [ ] `false` → payload `0x00`
+- [ ] Decoding: any payload value other than `0x00` or `0x01` → `ERR_CANON_MCF`
+- [ ] Booleans are distinct from strings: `true` ≠ `"true"`, `false` ≠ `"false"`
+- [ ] In Python: check `isinstance(x, bool)` before `isinstance(x, int)` (bool is a subclass of int)
 
-10. JSON-STRICT adapter (if you support JSON input):
-   - Reject BOM (including after leading whitespace)
-   - Strict UTF-8 decode
-   - Detect duplicate keys AFTER escape resolution
-     ("a\u0062" and "ab" must be treated as the same key)
-   - true/false → STRING "true"/"false"
-   - null → `ERR_TYPE`
-   - numbers → `ERR_TYPE`
-   - surrogate escapes (`\uD800`–`\uDFFF`) → `ERR_UTF8`
+## INTEGER Encoding
 
-11. BIND projection (if you support BIND):
-   - Parse RFC 6901 pointers (`~0 → ~`, `~1 → /`)
-   - Reject duplicate pointers
-   - Reject LIST traversal
-   - Unmatched pointers:
-     - all unmatched → return empty MAP (not error)
-     - some matched + some unmatched → `ERR_SCHEMA`
-   - Handle subsumption (shorter pointer subsumes longer)
-   - Build minimal enclosing structure (omit-siblings rule)
+- [ ] Tag `0x06` + exactly 8 bytes: signed 64-bit, big-endian (two's complement)
+- [ ] Range: −9,223,372,036,854,775,808 to 9,223,372,036,854,775,807
+- [ ] Values outside int64 range → `ERR_TYPE`
+- [ ] `0` encodes as `0x06` + `0x0000000000000000`
+- [ ] Negative values use standard two's complement: `-1` → `0x06` + `0xFFFFFFFFFFFFFFFF`
+- [ ] Decoding: exactly 8 bytes after tag; fewer → `ERR_CANON_MCF`
 
-12. Error precedence: if multiple errors are possible, report the highest-precedence one.
-   Order (highest first):
-   `ERR_CANON_HDR, ERR_CANON_MCF, ERR_SCHEMA, ERR_TYPE, ERR_UTF8, ERR_DUP_KEY, ERR_KEY_ORDER, ERR_LIMIT_DEPTH, ERR_LIMIT_SIZE`
+## Float Rejection
 
-13. Run conformance: all 53 vectors must pass. Zero tolerance.
+- [ ] JSON tokens with `.` (decimal point) → `ERR_TYPE`
+- [ ] JSON tokens with `e` or `E` (exponent) → `ERR_TYPE`
+- [ ] `1.0` is rejected even though mathematically integral — token-level detection
+- [ ] `0.0` is rejected
+- [ ] `1e5` is rejected
+- [ ] This applies to the JSON-STRICT adapter; native API users won't encounter JSON tokens
 
-14. Emit a PASS_REPORT (see `conformance/PASS_REPORT.schema.json`).
-    Include `spec_sha256`, `vectors_sha256`, `expected_sha256`.
+## MAP Encoding
 
-## Common Mistakes
+- [ ] Keys sorted by `memcmp` on UTF-8 bytes (unsigned byte comparison)
+- [ ] Duplicate keys → `ERR_DUP_KEY`
+- [ ] Keys must be strings — no other type allowed as a key
+- [ ] Entry count is 4-byte big-endian; max 65,535 entries
+- [ ] Key ordering: signed byte traps — `0x80` sorts after `0x7F` in unsigned comparison
 
-- Sorting keys using string comparison instead of byte comparison
-- Using signed byte comparison instead of unsigned
-- Failing to reject trailing bytes after the MCF root value
-- Treating duplicate JSON keys as “last wins”
-- Inconsistent depth starting point between encoders/adapters
+## LIST Encoding
+
+- [ ] Elements in order (no sorting)
+- [ ] Element count is 4-byte big-endian; max 65,535 elements
+- [ ] Empty list is valid: tag `0x03` + `0x00000000`
+
+## Null Handling
+
+- [ ] JSON `null` → `ERR_TYPE`
+- [ ] Language-native null/nil/None → `ERR_TYPE`
+
+## JSON-STRICT Adapter
+
+- [ ] BOM rejection: UTF-8 BOM (`0xEF 0xBB 0xBF`) at start of content → `ERR_SCHEMA`
+- [ ] BOM after leading whitespace: also rejected
+- [ ] Lone surrogates in strings → `ERR_UTF8`
+- [ ] Duplicate keys (after escape resolution) → `ERR_DUP_KEY`
+- [ ] Duplicate detection: `{"a":1,"\u0061":2}` has duplicate keys (both decode to `"a"`)
+- [ ] JSON booleans → BOOLEAN type
+- [ ] JSON integer tokens → INTEGER type (range-checked)
+- [ ] JSON float tokens → `ERR_TYPE`
+- [ ] JSON null → `ERR_TYPE`
+- [ ] `Infinity`, `-Infinity`, `NaN` → `ERR_CANON_MCF`
+
+### JavaScript-Specific Warnings
+
+- [ ] `JSON.parse()` converts all numbers to IEEE 754 doubles — integers above 2^53 lose precision silently. Intercept at parse time or use BigInt.
+- [ ] JavaScript's default string sort uses UTF-16 code units, not UTF-8 bytes. Implement UTF-8 byte comparison explicitly for key ordering.
+- [ ] `typeof true === "boolean"` — don't conflate with strings.
+
+## Safety Limits
+
+- [ ] MAX_CANON_BYTES: 1,048,576 (1 MiB) — reject inputs that would exceed this before allocating buffers
+- [ ] MAX_DEPTH: 32 — nested containers (MAPs and LISTs) beyond 32 levels → `ERR_LIMIT_DEPTH`
+- [ ] MAX_MAP_ENTRIES: 65,535
+- [ ] MAX_LIST_ENTRIES: 65,535
+
+## Error Precedence
+
+- [ ] When multiple errors apply, report the highest-precedence one
+- [ ] Precedence order (highest first): `ERR_CANON_HDR` > `ERR_CANON_MCF` > `ERR_SCHEMA` > `ERR_TYPE` > `ERR_UTF8` > `ERR_DUP_KEY` > `ERR_KEY_ORDER` > `ERR_LIMIT_DEPTH` > `ERR_LIMIT_SIZE`
+
+## MID Format
+
+- [ ] Output: `map1:` prefix + lowercase hex SHA-256 of CANON_BYTES
+- [ ] CANON_BYTES = CANON_HDR (5 bytes) + MCF-encoded value
+- [ ] Total MID string length: 71 characters (5 prefix + 64 hex digits)
+
+## Conformance
+
+- [ ] Run all 95 test vectors from `conformance_vectors_v11.json`
+- [ ] Compare against `conformance_expected_v11.json`
+- [ ] Zero tolerance — every vector must match exactly
+- [ ] Test both MID output and error codes

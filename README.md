@@ -1,191 +1,169 @@
+# MAP v1 — Deterministic Identity for Structured Data
+
 [![CI](https://github.com/map-protocol/map1/actions/workflows/ci.yml/badge.svg)](https://github.com/map-protocol/map1/actions)
-[![PyPI](https://img.shields.io/pypi/v/map-protocol)](https://pypi.org/project/map-protocol/)
 [![npm](https://img.shields.io/npm/v/@map-protocol/map1)](https://www.npmjs.com/package/@map-protocol/map1)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Conformance](https://img.shields.io/badge/conformance-53%2F53-brightgreen)](conformance/)
+[![PyPI](https://img.shields.io/pypi/v/map-protocol)](https://pypi.org/project/map-protocol/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-# MAP v1.0 - Deterministic Identity for Structured Data
-
-MAP is a small protocol I built after running into the same problem too many times: structured data crosses a system boundary and you can't reliably prove it's the same thing on the other side.
-
-Same input, same ID, every time, regardless of what language produced it or how it was serialized along the way.
+MAP computes deterministic identifiers for structured data — transit integrity for data you control. A payload is authored at point A, passes through serialization boundaries (middleware, queues, API gateways), and MAP lets you verify at point B that nothing changed. Not semantically equivalent. Identical.
 
 ```
-Input (any language/runtime)
-        │
-        ▼
-   Canonicalize (MCF binary format)
-        │
-        ▼
-     SHA-256
-        │
-        ▼
-   map1:02f660...
+Descriptor ─→ Canonical Bytes (MCF) ─→ SHA-256 ─→ MID
+                                                   map1:02f660...
 ```
 
----
+## The 30-Second Version
 
-## Get started
-
-```
-pip install map-protocol          # Python
-npm install @map-protocol/map1    # Node
-```
+A deployment descriptor is approved:
 
 ```python
 from map1 import mid_full
 
-mid_full({"action": "deploy", "target": "prod", "version": "2.1.0"})
-# → map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
+approved = {"action": "deploy", "target": "prod", "version": "2.1.0"}
+receipt = mid_full(approved)
+# map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
 ```
 
-Don't trust me - verify it yourself: [browser playground](https://map-protocol.github.io/map1/)
-
-Reorder the keys, re-serialize it, compute it in a different language - same MID:
-
-```
-{"version":"2.1.0","action":"deploy","target":"prod"}
-→ map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
-```
-
-Change a single value and the MID changes:
-
-```
-{"action":"deploy","target":"staging","version":"2.1.0"}
-→ map1:2c636ba86104e45afcbaacaf8df6e85d8e17cc05e02d114446a9e1081efefd5d
-```
-
----
-
-## Why does this exist?
-
-JSON is not canonical. The same data serialized by different systems produces different bytes. Different bytes means different hashes. Different hashes means you can't answer the question "is this the same thing?" across a system boundary.
-
-This matters when structured data passes through middleware, serializers, retry logic, orchestrators, or any pipeline where the payload might get reformatted between point A and point B. If you need to verify that what arrived is what was sent - not just similar, but identical - you need a canonicalization step before you hash.
-
-MAP defines a canonical binary format (MCF) with exactly one valid encoding for any given input. No ambiguity, no implementation-dependent choices. Two conformant implementations will always produce the same bytes for the same logical data. The MID is just the SHA-256 of those bytes with a `map1:` prefix.
-
-I built this after running into the same problem over and over. CI/CD pipelines, API idempotency checks, agent-driven workflows. There wasn't a clean protocol-level answer I could point to and say: use this.
-
-More on the design reasoning: [DESIGN.md](DESIGN.md)
-
----
-
-## What's in the box
-
-- **Frozen spec** - 483 lines, locked under [governance contract](GOVERNANCE.md). It doesn't change.
-- **Python implementation** - zero dependencies. `pip install map-protocol`
-- **Node implementation** - zero dependencies. `npm install @map-protocol/map1`
-- **53 conformance vectors** - append-only, never removed. Both implementations pass all 53 identically.
-- **CLI tools** for both languages
-- **Browser playground** - try it without installing anything: [map-protocol.github.io/map1/](https://map-protocol.github.io/map1/)
-- **MIT licensed**
-
----
-
-## Type system
-
-MAP supports four types: **strings**, **bytes**, **lists**, and **maps**.
-
-No numbers. No nulls. No booleans as a distinct type.
-
-These are deliberate choices to ensure cross-language determinism. JavaScript's number handling is different from Python's is different from Go's. Rather than pick a side, MAP rejects them. If you need a number, encode it as a string.
-
-Booleans collapse to their string representation (`true` becomes `"true"`). This means `[true]` and `["true"]` produce the same MID. That's documented as footgun #9 in the spec and explained in [DESIGN.md](DESIGN.md#why-do-booleans-collapse-to-strings).
-
-If you're thinking "those are weird choices" - I understand. Read [DESIGN.md](DESIGN.md) for the full reasoning. The short version: determinism over convenience, every time.
-
----
-
-## API
-
-Python:
+Later, at execution time, the system reconstructs the descriptor from whatever it received — maybe it went through a message queue, a config renderer, an API gateway — and recomputes:
 
 ```python
-from map1 import (
-    mid_full,
-    mid_bind,
-    canonical_bytes_full,
-    canonical_bytes_bind,
-    mid_from_canon_bytes,
-)
+received = {"target": "prod", "action": "deploy", "version": "2.1.0"}  # keys reordered
+assert mid_full(received) == receipt  # ✓ same MID — nothing was mutated
 ```
 
-Node / TypeScript:
+Different key order, same MID. Run it in Node, Go, or Rust — same MID. That's the entire point.
 
-```javascript
-import {
-    midFull,
-    midBind,
-    canonicalBytesFull,
-    canonicalBytesBind,
-    midFromCanonBytes,
-} from "map1"
+## Where It Fits
+
+MAP produces identifiers you can use as receipts, anchors, and audit evidence. Every example below is the same pattern: a single structured payload moves through a pipeline, and you need to know whether it arrived intact.
+
+- **Agent action receipts.** An AI agent proposes an action. A human approves it. Before execution, recompute the MID. If it doesn't match the approval receipt, something was mutated between authorization and execution. Fail closed.
+- **CI/CD artifact identity.** Tag build outputs with the MID of their build configuration. If the config MID matches a previous build, the inputs were identical.
+- **Configuration drift.** Store the MID of expected configuration. Periodically recompute from live state. Different MID means something drifted.
+- **Audit trails.** Log the MID of every state transition. Compact, deterministic, independently verifiable across languages.
+- **Idempotency keys.** Use the MID as a natural dedup key — no synthetic UUIDs.
+
+## Install
+
+```bash
+pip install map-protocol          # Python 3.9+
+npm install @map-protocol/map1    # Node 16+
 ```
 
-| Function | What it does |
-|---|---|
-| `mid_full(descriptor)` | MID of the full descriptor |
-| `mid_bind(descriptor, pointer_set)` | MID of selected fields only (BIND projection) |
-| `canonical_bytes_full(descriptor)` | Raw canonical bytes before hashing |
-| `mid_from_canon_bytes(canon_bytes)` | MID from pre-computed canonical bytes |
+Go and Rust implementations are also available under `implementations/`.
 
----
+## Try It
+
+```bash
+echo '{"action":"deploy","target":"prod","version":"2.1.0"}' | map1 mid --full
+# map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e
+```
+
+Reorder the keys, run it again. Same MID.
+
+## Python
+
+```python
+from map1 import mid_full, prepare
+
+# Strings, booleans, integers — all produce deterministic MIDs
+mid_full({"action": "deploy", "target": "prod", "version": "2.1.0"})
+# → 'map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e'
+
+# v1.1 type distinction: booleans and integers are their own types
+mid_full({"active": True, "count": 42, "name": "test"})
+# → 'map1:cd04f06f8fcfa1136cb8b1dc405fc161e8e783968d3f889582506a18e83f4b0c'
+
+# Got floats? prepare() converts them to strings
+raw = {"temp": 98.6, "active": True, "notes": None}
+mid_full(prepare(raw))
+# floats → strings, None → omitted, then hashed
+```
+
+## Node.js / TypeScript
+
+```typescript
+import { midFull, midFullJson } from '@map-protocol/map1';
+
+midFull({ action: 'deploy', target: 'prod', version: '2.1.0' });
+// → 'map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e'
+
+// JSON-STRICT mode for untrusted input (catches dups, surrogates, BOM)
+midFullJson(Buffer.from('{"active":true,"count":42,"name":"test"}'));
+// → 'map1:cd04f06f8fcfa1136cb8b1dc405fc161e8e783968d3f889582506a18e83f4b0c'
+```
 
 ## CLI
 
 ```bash
-echo '{"action":"deploy"}' | map1 mid --full
-echo '{"action":"deploy"}' | map1 mid --bind /action
-map1 mid --full --file mutation.json
-map1 canon --full --file mutation.json | sha256sum
-map1 version
+# FULL — hash everything
+echo '{"action":"deploy","target":"prod"}' | map1 mid --full
+
+# BIND — hash only selected fields
+echo '{"action":"deploy","target":"prod","ts":"2026-02-24"}' | map1 mid --bind /action /target
+
+# Strict validation (duplicate keys, BOM, surrogates)
+map1 mid --full --json-strict < descriptor.json
+
+# Canonical bytes for debugging
+echo '{"a":"b"}' | map1 canon --full
 ```
 
----
+## What Is This, Exactly?
 
-## What MAP is not
+MAP defines a six-type data model (STRING, BYTES, LIST, MAP, BOOLEAN, INTEGER), a binary encoding called MCF, and a SHA-256 hash over the result. The output is a `map1:`-prefixed hex digest called a MID.
 
-MAP is intentionally narrow. It does one thing and tries to do it predictably. It's meant to be a primitive, not a framework.
+The guarantee: if two descriptors have the same content, they produce the same MID — regardless of JSON key order, whitespace, serialization format, or programming language. MAP doesn't care whether the input came from JSON, CBOR, YAML, or a native data structure.
 
-- No policy or authorization
-- No signing
-- No storage
-- No schema validation
+An important distinction: MAP is not a tool for making two different systems agree on what a value *means*. If System A represents a quantity as a float and System B represents it as an integer, MAP won't reconcile that — and shouldn't try. MAP verifies that a specific payload you authored wasn't modified in transit. You control the schema and the representation. MAP verifies the bytes didn't change between where you produced them and where you consumed them.
 
-It answers one question: **is this the same thing?**
+## How MAP Compares
 
-What you build on top of that answer is up to you.
+| | MAP | JCS (RFC 8785) | Content hashing |
+|---|---|---|---|
+| **Output** | Identifier (MID) | Canonical JSON text | Raw hash |
+| **Deterministic** | Yes — binary canonical form | Yes — within JSON | No — key order, whitespace vary |
+| **Input format** | Any (JSON, native types, CBOR) | JSON only | JSON only |
+| **Cross-language** | Yes — spec + 95 conformance vectors | Depends on implementation | No guarantee |
+| **Floats** | Rejected (encode as string) | IEEE 754 normalization | Included (non-deterministic) |
 
----
+JCS canonicalizes JSON *text*. MAP canonicalizes a *data model* and hashes it. If you need canonical JSON output, use JCS. If you need a deterministic identifier for structured data that might cross language and serialization boundaries, MAP is what you want.
 
-## Cross-language guarantee
+## Floats
 
-Any conformant implementation produces the same MID for the same input. Currently: Python and Node. Planned: Go, Rust.
+MAP rejects floats because IEEE 754 makes cross-platform determinism impossible. Encode them as strings with your desired precision — Python's `prepare()` does this automatically. See [DESIGN.md](docs/DESIGN.md) for the full rationale and [FAQ.md](docs/FAQ.md) for examples.
 
-All implementations must pass the full [conformance suite](conformance/) (53 vectors, zero tolerance).
+## Projections
 
----
+FULL hashes the entire descriptor. BIND selects specific fields by JSON Pointer path — useful when you want a stable identity over a subset while ignoring volatile metadata like timestamps.
 
-## Docs
+```python
+from map1 import mid_bind
 
-- [DESIGN.md](DESIGN.md) - Why MAP makes the choices it makes
-- [FAQ.md](FAQ.md) - Common questions and quick answers
-- [Spec](spec/MAP_v1.0.md) - The full 483-line specification
-- [Quickstart](docs/quickstart_10min.md) - Get running in 10 minutes
-- [Use cases](docs/use_cases.md) - Where MAP fits
-- [Common footguns](docs/common_footguns.md) - Things that will trip you up
-- [Implementer checklist](docs/implementer_checklist.md) - Building a new implementation
-- [Contributing](CONTRIBUTING.md) - How to help
+descriptor = {"action": "deploy", "target": "prod", "version": "2.1.0", "timestamp": "2026-02-24T10:00:00Z"}
+mid_bind(descriptor, ["/action", "/target"])
+# Only "action" and "target" contribute to the MID
+```
 
----
+## Conformance
 
-## About
+95 test vectors. Four implementations. Zero tolerance. Every vector must match exactly — both MID output and error codes.
 
-Built by [Aaron Davidson](https://www.linkedin.com/in/aaron-gerard-davidson/). Security architect. Spent my career watching structured data quietly change between systems and finally decided to do something about it.
+```bash
+make conformance    # runs all languages
+```
 
-Questions, feedback, or bugs: [open an issue](https://github.com/map-protocol/map1/issues) or email agdavidson@gmail.com.
+## Resources
 
----
+- [Specification (v1.1)](spec/MAP_v1.1.md)
+- [10-Minute Quickstart](docs/quickstart_10min.md)
+- [Design Decisions](docs/DESIGN.md)
+- [FAQ](docs/FAQ.md)
+- [Gotchas](docs/gotchas.md)
+- [Implementer Checklist](docs/implementer_checklist.md)
+- [Changelog](CHANGELOG.md)
+- [Playground](https://map-protocol.github.io/map1/)
 
-License: [MIT](LICENSE)
+## License
+
+MIT

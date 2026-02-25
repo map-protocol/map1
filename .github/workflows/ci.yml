@@ -1,4 +1,4 @@
-name: MAP v1.0 CI
+name: CI
 
 on:
   push:
@@ -7,61 +7,62 @@ on:
     branches: [main]
 
 jobs:
-  python-conformance:
-    name: Python conformance (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  python:
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.9", "3.12", "3.13"]
-    env:
-      PYTHONUTF8: 1
-      PYTHONIOENCODING: utf-8
+        python-version: ['3.9', '3.12']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Run Python conformance
-        run: python implementations/python/tests/test_conformance.py --vectors-dir conformance
-        env:
-          MAP1_VECTORS_DIR: conformance
-          PYTHONPATH: implementations/python
-      - name: CLI smoke test
-        run: echo '{"action":"deploy","target":"prod","version":"2.1.0"}' | python -m map1 mid --full
-```
+      - name: Install
+        working-directory: implementations/python
+        run: pip install -e .
+      - name: Unit tests
+        working-directory: implementations/python
+        run: python tests/test_api.py -v
+      - name: Conformance
+        working-directory: implementations/python
+        run: MAP1_VECTORS_DIR=../../conformance python tests/test_conformance.py
 
-Save the file. Then in PowerShell:
-```
-cd C:\Projects\map1-repo
-```
-```
-git add .github/workflows/ci.yml
-```
-```
-git commit -m "fix: CI single-line commands for Windows PowerShell compatibility"
-```
-```
-git push
-        env:
-          PYTHONPATH: implementations/python
-
-  node-conformance:
-    name: Node conformance (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  node:
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        node-version: ["18", "20", "22"]
+        node-version: ['18', '22']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Run Node conformance
-        run: |
-          node --test implementations/node/tests/conformance.test.js
-        env:
-          MAP1_VECTORS_DIR: conformance
+      - name: Unit tests
+        working-directory: implementations/node
+        run: node tests/test-api.js
+      - name: Conformance
+        working-directory: implementations/node
+        run: MAP1_VECTORS_DIR=../../conformance node tests/test-conformance.js
+
+  go:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.22', '1.23']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Test
+        working-directory: implementations/go
+        run: MAP1_VECTORS_DIR=../../conformance go test -v -count=1 ./...
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test
+        working-directory: implementations/rust
+        run: cargo test

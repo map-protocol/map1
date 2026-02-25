@@ -1,0 +1,37 @@
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# node
+node_modules/
+dist/
+*.tgz
+
+# go
+# binaries end up in the module dir sometimes
+*.exe
+*.test
+
+# rust
+target/
+
+# editors — I use vscode, fight me
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# os junk
+.DS_Store
+Thumbs.db
+
+# test/build artifacts
+*.log
+coverage/
+htmlcov/
+.pytest_cache/

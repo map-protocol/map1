@@ -1,10 +1,17 @@
-"""MAP v1 command-line interface.
+"""MAP v1.1 command-line interface.
 
 Usage:
-    echo '{"a":"b"}' | python3 -m map1 mid [--full | --bind /ptr1 /ptr2 ...]
-    echo '{"a":"b"}' | python3 -m map1 canon [--full | --bind /ptr1 /ptr2 ...]
-    python3 -m map1 mid --full --input file.json
-    python3 -m map1 version
+    echo '{"action":"deploy","target":"prod"}' | python -m map1 mid --full
+    echo '{"active":true,"count":42}' | python -m map1 mid --full --json-strict
+    echo '{"a":"1","b":"2"}' | python -m map1 mid --bind /a
+    python -m map1 mid --full --input file.json
+    python -m map1 canon --full < descriptor.json
+    python -m map1 version
+
+The --json-strict flag enables the full JSON-STRICT adapter pipeline:
+BOM rejection, surrogate detection, duplicate-key detection, and strict
+type mapping (booleans→BOOLEAN, integers→INTEGER, floats→ERR_TYPE).
+Without it, json.loads() is used directly with Python-native type handling.
 """
 
 from __future__ import annotations
@@ -30,7 +37,7 @@ from . import (
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="map1",
-        description="MAP v1 — deterministic identifiers for structured descriptors",
+        description="MAP v1.1 — deterministic identifiers for structured descriptors",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -39,18 +46,18 @@ def _build_parser() -> argparse.ArgumentParser:
     mid_g = mid_p.add_mutually_exclusive_group(required=True)
     mid_g.add_argument("--full", action="store_true", help="FULL projection")
     mid_g.add_argument("--bind", nargs="+", metavar="PTR",
-                       help="BIND projection: JSON pointers to include")
+                       help="BIND projection with JSON pointer paths")
     mid_p.add_argument("--input", "-i", metavar="FILE",
                        help="Read JSON from FILE instead of stdin")
     mid_p.add_argument("--json-strict", action="store_true",
-                       help="Use JSON-STRICT pipeline (raw bytes, dup-key detection)")
+                       help="Full JSON-STRICT pipeline (recommended for untrusted input)")
 
     # ── canon ──
-    canon_p = sub.add_parser("canon", help="Emit canonical bytes (base64)")
+    canon_p = sub.add_parser("canon", help="Emit CANON_BYTES as base64")
     canon_g = canon_p.add_mutually_exclusive_group(required=True)
     canon_g.add_argument("--full", action="store_true", help="FULL projection")
     canon_g.add_argument("--bind", nargs="+", metavar="PTR",
-                         help="BIND projection: JSON pointers to include")
+                         help="BIND projection with JSON pointer paths")
     canon_p.add_argument("--input", "-i", metavar="FILE",
                          help="Read JSON from FILE instead of stdin")
 
@@ -61,7 +68,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _read_input(filepath: Optional[str]) -> bytes:
-    """Read JSON bytes from a file or stdin."""
     if filepath:
         with open(filepath, "rb") as f:
             return f.read()
@@ -74,13 +80,13 @@ def _cmd_mid(args: argparse.Namespace) -> None:
     raw = _read_input(args.input)
 
     if args.json_strict:
-        # JSON-STRICT path: operate on raw bytes
         if args.full:
             print(mid_full_json(raw))
         else:
             print(mid_bind_json(raw, args.bind))
     else:
-        # Dict path: parse JSON, then compute
+        # Non-strict path: Python's json.loads handles types natively.
+        # In v1.1, booleans and integers pass through to the encoder.
         descriptor = json.loads(raw)
         if args.full:
             print(mid_full(descriptor))
@@ -96,7 +102,6 @@ def _cmd_canon(args: argparse.Namespace) -> None:
         cb = canonical_bytes_full(descriptor)
     else:
         cb = canonical_bytes_bind(descriptor, args.bind)
-    # Output base64 for safe terminal display
     print(base64.b64encode(cb).decode("ascii"))
 
 
@@ -109,7 +114,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         sys.exit(1)
 
     if args.command == "version":
-        print(f"map1 {__version__}")
+        print("map1 {}".format(__version__))
         return
 
     try:
@@ -118,10 +123,10 @@ def main(argv: Optional[List[str]] = None) -> None:
         elif args.command == "canon":
             _cmd_canon(args)
     except MapError as e:
-        print(f"map1: error [{e.code}]: {e}", file=sys.stderr)
+        print("map1: [{code}] {msg}".format(code=e.code, msg=e), file=sys.stderr)
         sys.exit(2)
     except json.JSONDecodeError as e:
-        print(f"map1: JSON parse error: {e}", file=sys.stderr)
+        print("map1: JSON parse error: {}".format(e), file=sys.stderr)
         sys.exit(2)
 
 

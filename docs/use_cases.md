@@ -1,111 +1,72 @@
 # Use Cases
 
-map1 computes a deterministic identifier for structured data. Here is where that matters.
+MAP computes deterministic identifiers for structured data you control. The pattern is always the same: a payload is authored at one point, moves through a pipeline, and is verified at another. Here's where that matters.
 
----
+## Agent Action Receipts
 
-## CI/CD drift detection
+An AI agent proposes an action. A human (or policy engine) approves it. The agent executes it. Between approval and execution, the action descriptor passes through middleware, message queues, maybe an orchestration layer. How do you prove the thing that executed is the same thing that was approved?
 
-A deployment config gets approved. By the time it runs, something may have changed — a field added, a value tweaked, a key removed. You need to catch that.
+Compute the MID at approval time:
 
-Compute the MID at approval time. Store it. At deploy time, recompute and compare.
+```python
+from map1 import mid_full
 
-    from map1 import mid_full
+action = {
+    "action": "deploy",
+    "target": "prod",
+    "version": "2.1.0",
+    "port": 8443,          # INTEGER — distinct from "8443"
+    "force": False,         # BOOLEAN — distinct from "false"
+}
+receipt = mid_full(action)
+# map1:...
+```
 
-    approved_mid = "map1:02f660092e372c2da0f87cefdecd1de9476eba39be2222b30637ba72178c5e7e"
-    runtime = {"action": "deploy", "target": "prod", "version": "2.1.0"}
+Store the receipt. At execution time, reconstruct the descriptor from whatever arrived through the pipeline and recompute. If the MIDs match, nothing was tampered with. If they differ, something changed — fail closed.
 
-    assert mid_full(runtime) == approved_mid, "config drift detected"
+v1.1's type system makes this more expressive. Changing `"force"` from `False` to `True` changes the MID. Changing it from `False` to `"false"` also changes the MID — different type, different identity. An attacker (or a buggy serializer) can't substitute a string for a boolean without the MID changing.
 
-The MID changes if any value changes. It does not change if keys are reordered.
+## CI/CD Pipeline Identity
 
----
+A build configuration is defined in your CI system, passed through template rendering, environment variable substitution, and maybe a config management tool before it reaches the build runner. Did anything get lost or changed along the way?
 
-## Idempotency without synthetic IDs
+```python
+config = {
+    "repo": "github.com/org/service",
+    "branch": "main",
+    "commit": "a1b2c3d4e5f6",
+    "build_number": 1042,    # INTEGER
+    "debug": False,          # BOOLEAN
+}
+build_id = mid_full(config)
+```
 
-Same mutation, same MID. Use it as a natural dedup key instead of minting UUIDs.
+Tag every build artifact with this MID. If two builds have the same config MID, the inputs were identical. If the config changed, the MID changed — you can trace exactly which configuration produced which artifact.
 
-    from map1 import mid_full
+BIND projection lets you compute partial identities. Maybe you want to track the source identity separately from the build parameters:
 
-    mutation = {"action": "transfer", "from": "acct-1", "to": "acct-2", "amount": "500"}
-    key = mid_full(mutation)
+```python
+from map1 import mid_bind
 
-    if not cache.has(key):
-        cache.set(key, process(mutation))
-    return cache.get(key)
+source_id = mid_bind(config, ["/repo", "/commit"])
+```
 
-Two identical requests produce the same key. No coordination needed between sender and receiver.
+## Configuration Drift Detection
 
----
+Store the MID of your expected configuration. Periodically recompute the MID of the live configuration. If they differ, something drifted. The MID doesn't tell you *what* changed — it tells you *that* something changed, which is the first question you need answered before digging into diffs.
 
-## Audit trail anchoring
+This works across language boundaries. Your Python management plane and your Go data plane can both compute MIDs over the same configuration and compare them. Same config means same MID, regardless of which language computed it.
 
-Log every mutation with its MID. Months later, recompute. If they disagree, the record was altered.
+## Audit Trails
 
-    record = {"action": "grant_access", "role": "admin", "user": "u-456"}
-    log_entry = {"mutation": record, "mid": mid_full(record)}
+Every state transition in a system can be described as a structured record. Compute the MID and log it. The result is an append-only sequence of compact, deterministic identifiers.
 
-    # At audit time
-    assert mid_full(log_entry["mutation"]) == log_entry["mid"]
+Because MAP is language-independent, the audit log can be verified by any system with a MAP implementation — your Python service writes the log, a Go compliance tool verifies it, a Rust validator does spot checks. They'll all compute the same MID for the same input. No coordination required beyond agreeing on the descriptor schema.
 
-This works because the MID is derived from the content, not assigned by the system that wrote it. Anyone can verify it independently.
+## Content-Addressable Storage
 
----
+Use MIDs as storage keys. Two descriptors with the same content produce the same MID, so deduplication is automatic. Same principle behind Git's content-addressable object store, but for arbitrary structured data instead of blobs and trees.
 
-## Agent action receipts
+## Idempotency Keys
 
-An AI agent proposes an action. It passes through a safety filter, a formatting layer, maybe human approval. By execution time, you need proof that what ran is what was proposed.
-
-    const { midFull } = require("map1");
-
-    // Agent proposes
-    const action = { tool: "send_email", to: "alice@co.com", subject: "Q3 report" };
-    const receipt = midFull(action);
-
-    // After safety review, formatting, approval...
-    const executed = pipeline.getApproved();
-    if (midFull(executed) !== receipt) {
-      throw new Error("action modified after agent proposal");
-    }
-
-The MID is the receipt. It's computed by the agent, stored before any transformation, and verified at execution. No signatures, no certificates, no key management. Just content identity.
-
-This matters now for tool-use agents (MCP, function calling). It will matter more as agents chain actions across services where no single system sees the whole pipeline.
-
----
-
-## Multi-system mutation coordination
-
-Three services, two agents, and a human approval step all touch the same mutation. The MID is how everyone confirms they're talking about the same thing.
-
-Service A proposes a change. It computes the MID and puts it in a header. Service B receives the mutation, recomputes the MID, and checks. The human reviewer sees the MID in the approval UI. Service C executes and logs the MID.
-
-    # Service A (proposer)
-    mid = mid_full(mutation)
-    send(mutation, headers={"x-mutation-id": mid})
-
-    # Service B (validator)
-    assert mid_full(received) == headers["x-mutation-id"]
-
-    # Service C (executor)
-    audit_log.write({"mutation": received, "mid": mid_full(received)})
-
-No shared database. No distributed lock. Each system independently computes the same identifier from the same data.
-
----
-
-## Regulatory compliance for AI actions
-
-When regulators ask "what did your AI system do, and can you prove the record hasn't been altered?", MIDs provide the anchor.
-
-Every agent action is structured data. Compute its MID at action time. Store both the action and the MID. At audit time, regulators (or their tools) recompute the MID from the stored action. If it matches, the record is intact. If not, something was changed after the fact.
-
-    actions = load_audit_trail(agent_id="agent-7", date="2026-02-23")
-
-    for entry in actions:
-        if mid_full(entry["action"]) != entry["mid"]:
-            flag_for_investigation(entry)
-
-This is not speculative. Financial services already require audit trails for automated trading decisions. Healthcare requires records of automated triage. As AI agents take more actions in regulated domains, the need for tamper-evident action records becomes mandatory, not optional.
-
-map1 doesn't solve compliance by itself. It provides the identity primitive that compliance systems can build on.
+If your descriptor fully describes a request, the MID is a natural idempotency key. No synthetic UUIDs, no client-generated request IDs. Two requests with the same content produce the same MID, and you can detect duplicates at the receiving end without any prior coordination.

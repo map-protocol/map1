@@ -1,9 +1,12 @@
-"""MAP v1 conformance test suite.
+"""MAP v1.1 conformance test suite.
 
-Runs all vectors from conformance_vectors.json against conformance_expected.json.
+Runs all vectors from conformance_vectors_v11.json against conformance_expected_v11.json.
+Falls back to v1.0 filenames if v1.1 files aren't present.
+
 Usage:
     python tests/test_conformance.py [--vectors-dir DIR]
     python -m pytest tests/test_conformance.py -v
+    PYTHONPATH=. MAP1_VECTORS_DIR=../../conformance python tests/test_conformance.py
 """
 
 from __future__ import annotations
@@ -14,9 +17,8 @@ import json
 import os
 import sys
 import unittest
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-# Ensure the package is importable when running from repo root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from map1 import (
@@ -26,129 +28,137 @@ from map1 import (
     mid_bind_json,
 )
 
-# ── Locate conformance data ────────────────────────────────
+# ── Locate conformance data ───────────────────────────────────
 
-_DEFAULT_VECTORS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "map1-bundle"
-)
-
-_VECTORS_DIR: Optional[str] = os.environ.get(
-    "MAP1_VECTORS_DIR", None
-)
+_VECTORS_DIR: Optional[str] = os.environ.get("MAP1_VECTORS_DIR", None)
 
 
-def _vectors_dir() -> str:
+def _find_vectors_dir() -> str:
     if _VECTORS_DIR:
         return _VECTORS_DIR
-    # Try common locations
     candidates = [
-        _DEFAULT_VECTORS_DIR,
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "conformance"),
+        os.path.join(os.path.dirname(__file__), "..", "..", "conformance"),
         os.path.join(os.path.dirname(__file__), "..", "conformance"),
         os.path.join(os.path.dirname(__file__), ".."),
     ]
     for d in candidates:
+        # Prefer v1.1 files, fall back to v1.0
+        if os.path.isfile(os.path.join(d, "conformance_vectors_v11.json")):
+            return d
         if os.path.isfile(os.path.join(d, "conformance_vectors.json")):
             return d
     raise FileNotFoundError(
-        "Cannot locate conformance_vectors.json. "
-        "Set MAP1_VECTORS_DIR or pass --vectors-dir."
+        "Cannot find conformance vectors. Set MAP1_VECTORS_DIR or --vectors-dir."
     )
 
 
-def _load_data() -> Tuple[list, dict]:
-    d = _vectors_dir()
+def _load_data() -> Tuple[List[dict], Dict[str, dict], str]:
+    """Load vectors and expected values.  Returns (vectors, expected, version)."""
+    d = _find_vectors_dir()
+
+    # Try v1.1 first
+    v11_vec = os.path.join(d, "conformance_vectors_v11.json")
+    v11_exp = os.path.join(d, "conformance_expected_v11.json")
+    if os.path.isfile(v11_vec) and os.path.isfile(v11_exp):
+        with open(v11_vec, "r", encoding="utf-8") as f:
+            vectors = json.load(f)["vectors"]
+        with open(v11_exp, "r", encoding="utf-8") as f:
+            expected = json.load(f)["expected"]
+        return vectors, expected, "1.1"
+
+    # Fall back to v1.0
     with open(os.path.join(d, "conformance_vectors.json"), "r", encoding="utf-8") as f:
         vectors = json.load(f)["vectors"]
     with open(os.path.join(d, "conformance_expected.json"), "r", encoding="utf-8") as f:
         expected = json.load(f)["expected"]
-    return vectors, expected
+    return vectors, expected, "1.0"
 
 
 def _run_vector(vec: dict) -> Dict[str, Any]:
-    """Run one conformance vector. Returns {"mid": ...} or {"err": ...}."""
+    """Execute one conformance vector.  Returns {"mid": ...} or {"err": ...}."""
     mode = vec["mode"]
     raw = base64.b64decode(vec["input_b64"])
-    pointers = vec.get("pointers", [])
+    ptrs = vec.get("pointers", [])
 
     try:
         if mode == "json_strict_full":
-            mid = mid_full_json(raw)
-            return {"mid": mid}
+            return {"mid": mid_full_json(raw)}
         elif mode == "json_strict_bind":
-            mid = mid_bind_json(raw, pointers)
-            return {"mid": mid}
+            return {"mid": mid_bind_json(raw, ptrs)}
         elif mode == "canon_bytes":
-            mid = mid_from_canon_bytes(raw)
-            return {"mid": mid}
+            return {"mid": mid_from_canon_bytes(raw)}
         else:
-            raise MapError("ERR_SCHEMA", f"unknown mode: {mode}")
+            return {"err": "UNKNOWN_MODE"}
     except MapError as e:
         return {"err": e.code}
 
 
-# ── Unittest-based test class ──────────────────────────────
+# ── unittest integration ──────────────────────────────────────
 
 class ConformanceTests(unittest.TestCase):
-    """Dynamically generated conformance tests (one per vector)."""
+    """Dynamically generated: one test method per vector."""
     pass
 
 
 def _make_test(vec: dict, exp: dict):
-    def test_method(self: unittest.TestCase) -> None:
+    def test_fn(self: unittest.TestCase) -> None:
         got = _run_vector(vec)
-        self.assertEqual(got, exp, f"Vector {vec['test_id']}: got {got}, expected {exp}")
-    return test_method
+        self.assertEqual(got, exp,
+                         "{}: got {} expected {}".format(vec["test_id"], got, exp))
+    return test_fn
 
 
-# Load vectors at module level and attach test methods
+# Attach test methods at import time.
 try:
-    _vectors, _expected = _load_data()
+    _vectors, _expected, _version = _load_data()
     for _vec in _vectors:
         _tid = _vec["test_id"]
         _exp = _expected[_tid]
-        _test_fn = _make_test(_vec, _exp)
-        _test_fn.__name__ = f"test_{_tid}"
-        _test_fn.__qualname__ = f"ConformanceTests.test_{_tid}"
-        setattr(ConformanceTests, f"test_{_tid}", _test_fn)
+        _fn = _make_test(_vec, _exp)
+        _fn.__name__ = "test_{}".format(_tid)
+        _fn.__qualname__ = "ConformanceTests.test_{}".format(_tid)
+        setattr(ConformanceTests, "test_{}".format(_tid), _fn)
 except FileNotFoundError:
-    pass  # Tests will simply not be generated
+    pass
 
 
-# ── CLI runner ──────────────────────────────────────────────
+# ── Standalone CLI runner ─────────────────────────────────────
 
 def main() -> None:
     global _VECTORS_DIR
+
     parser = argparse.ArgumentParser(description="MAP v1 conformance runner")
     parser.add_argument("--vectors-dir", default=None,
-                        help="Directory containing conformance_vectors.json and conformance_expected.json")
-    args, remaining = parser.parse_known_args()
+                        help="Directory with conformance vector files")
+    args, _remaining = parser.parse_known_args()
 
     if args.vectors_dir:
         _VECTORS_DIR = args.vectors_dir
         os.environ["MAP1_VECTORS_DIR"] = args.vectors_dir
 
-    # Quick standalone run (no unittest overhead)
-    vectors, expected = _load_data()
-    pass_count = 0
-    fail_count = 0
-    failures = []
+    vectors, expected, version = _load_data()
+
+    passed = 0
+    failed = 0
+    failures: List[Tuple[str, dict, dict]] = []
+
     for vec in vectors:
         tid = vec["test_id"]
         got = _run_vector(vec)
         exp = expected[tid]
         if got == exp:
-            pass_count += 1
+            passed += 1
         else:
-            fail_count += 1
+            failed += 1
             failures.append((tid, got, exp))
 
-    total = pass_count + fail_count
-    print(f"CONFORMANCE: {pass_count}/{total} PASS")
+    total = passed + failed
+    print("CONFORMANCE (v{}): {}/{} PASS".format(version, passed, total))
     for tid, got, exp in failures:
-        print(f"  FAIL {tid}: got={got} expected={exp}")
+        print("  FAIL {}: got={} expected={}".format(tid, got, exp))
 
-    if fail_count > 0:
-        sys.exit(1)
+    sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":
